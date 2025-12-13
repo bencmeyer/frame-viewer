@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Frame Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .app-header {
+            background: #2a2a2a;
+            padding: 15px 20px;
+            border-bottom: 2px solid #333;
+        }
+
+        .app-header h1 {
+            font-size: 20px;
+            color: #fff;
+            margin: 0;
+        }
+
+        .app-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .left-panel {
+            width: 350px;
+            min-width: 350px;
+            flex-shrink: 0;
+            background: #1e1e1e;
+            border-right: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .frame-section {
+            flex: 1;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-bottom: 2px solid #333;
+        }
+
+        .frame-controls {
+            padding: 15px;
+            background: #1a1a1a;
+            border-bottom: 2px solid #333;
+        }
+
+        .frame-preview {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .bottom-section {
+            height: 500px;
+            min-height: 500px;
+            max-height: 500px;
+            display: flex;
+            flex-direction: column;
+            background: #1a1a1a;
+            overflow: hidden;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid #333;
+        }
+
+        .section-header {
+            background: #252525;
+            padding: 10px 15px;
+            font-weight: 600;
+            font-size: 13px;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .section-header:hover {
+            background: #2a2a2a;
+        }
+
+        .section-content {
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .section-content.scrollable {
+            flex: 1;
+            max-height: none;
+        }
+
+        .left-panel-scroll {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #b0b0b0;
+            font-size: 12px;
+        }
+
+        select, input, button {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: #333;
+            color: #e0e0e0;
+            font-size: 13px;
+        }
+
+        select, input[type="number"], input[type="text"] {
+            width: 100%;
+        }
+
+        button {
+            background: #0066cc;
+            color: white;
+            cursor: pointer;
+            padding: 8px 12px;
+            border: none;
+            font-weight: 500;
+            transition: background 0.2s;
+            font-size: 12px;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .button-row button {
+            flex: 1;
+        }
+
+        .frames-grid {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            gap: 15px;
+            padding: 15px;
+            padding-bottom: 25px;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        
+        .frames-grid .frame-card {
+            flex: 0 0 auto;
+            width: 200px;
+            max-height: 100%;
+            overflow: hidden;
+        }
+
+        .frame-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .frame-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .frame-image {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #1a1a1a;
+        }
+
+        .frame-info {
+            padding: 10px;
+            font-size: 12px;
+            color: #b0b0b0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .file-browser {
+            background: #1a1a1a;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .folder-item {
+            margin: 4px 0;
+        }
+
+        .folder-header {
+            padding: 6px 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            user-select: none;
+            border-radius: 4px;
+        }
+
+        .folder-header:hover {
+            background: #2a2a2a;
+        }
+
+        .folder-toggle {
+            font-size: 10px;
+            width: 16px;
+            text-align: center;
+            transition: transform 0.2s;
+            color: #888;
+        }
+
+        .folder-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .folder-icon {
+            font-size: 14px;
+        }
+
+        .folder-name {
+            color: #ffa500;
+            font-weight: 500;
+        }
+
+        .folder-contents {
+            margin-left: 24px;
+            border-left: 1px solid #333;
+            padding-left: 0;
+        }
+
+        .folder-contents.collapsed {
+            display: none;
+        }
+
+        .file-item {
+            padding: 6px 8px;
+            margin: 2px 0;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+            font-size: 12px;
+            word-break: break-all;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 4px;
+        }
+
+        .file-item:hover {
+            background: #2a2a2a;
+        }
+
+        .file-item.selected {
+            background: rgba(33, 150, 243, 0.15);
+            border-left-color: #2196f3;
+        }
+
+        .file-icon {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .file-name {
+            color: #b0b0b0;
+        }
+
+        .preview-header {
+            background: #252525;
+            padding: 15px;
+            border-bottom: 1px solid #333;
+        }
+
+        .preview-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .info-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-right: 6px;
+            margin-top: 4px;
+        }
+
+        .info-badge.missing {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        .info-badge.matched {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+
+        .info-badge.multi {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+            overflow: auto;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            position: relative;
+            max-width: 95vw;
+            max-height: 95vh;
+            padding: 20px;
+        }
+
+        .modal-image-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .modal-image {
+            max-width: 90vw;
+            max-height: 80vh;
+            display: block;
+            image-rendering: -webkit-optimize-contrast;
+        }
+
+        .modal-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(42, 42, 42, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            min-width: 250px;
+        }
+
+        .modal-control-group {
+            margin-bottom: 15px;
+        }
+
+        .modal-control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            width: auto;
+        }
+
+        .slider-value {
+            min-width: 50px;
+            text-align: right;
+            font-family: monospace;
+        }
+
+        .close-modal {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .close-modal:hover {
+            background: #b71c1c;
+        }
+
+        .video-info {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: #b0b0b0;
+        }
+
+        .error {
+            background: #d32f2f;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .episode-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s, opacity 0.3s, transform 0.3s;
+            border: 2px solid transparent;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .episode-item:hover {
+            background: #333 !important;
+            transform: translateX(4px);
+        }
+
+        .episode-item.selected {
+            border-color: #2196f3;
+            background: rgba(33, 150, 243, 0.1) !important;
+        }
+
+        .episode-item.missing {
+            background: rgba(244, 67, 54, 0.1);
+            border-left: 4px solid #f44336;
+        }
+
+        .episode-item.matched {
+            background: rgba(76, 175, 80, 0.1);
+            border-left: 4px solid #4caf50;
+        }
+
+        .episode-item.multi-candidate {
+            background: rgba(255, 152, 0, 0.1);
+            border-left: 4px solid #ff9800;
+        }
+
+        .episode-checkbox {
+            margin-top: 2px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .episode-checkbox:hover {
+            transform: scale(1.1);
+        }
+
+        .episode-details {
+            flex: 1;
+        }
+
+        .episode-number {
+            font-family: monospace;
+            font-weight: bold;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .episode-title {
+            color: #e0e0e0;
+            margin: 4px 0;
+            font-size: 13px;
+        }
+
+        .episode-meta {
+            color: #888;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .episode-file-info {
+            background: #222;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: #b0b0b0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="app-header">
+            <h1>🎬 Episode Validator & Frame Viewer</h1>
+        </div>
+
+        <!-- Main Body -->
+        <div class="app-body">
+            <!-- Left Panel: File & Show Selection -->
+            <div class="left-panel">
+                <div style="background: #252525; padding: 12px; border-bottom: 2px solid #333; font-size: 11px; color: #888;">
+                    <strong style="color: #fff; display: block; margin-bottom: 6px;">📋 Step 1-2</strong>
+                    1. Select video file<br>
+                    2. Search for show
+                </div>
+                <div class="left-panel-scroll">
+                    <!-- Video File Selection -->
+                    <div class="panel-section">
+                        <div class="section-header" onclick="toggleSection(this)">
+                            📁 Video Files
+                            <span>▼</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="file-browser" id="fileBrowser">
+                                <div style="padding: 20px; text-align: center; color: #888;">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Show & Season Selection -->
+                    <div class="panel-section">
+                        <div class="section-header" onclick="toggleSection(this)">
+                            🎭 Show & Season
+                            <span>▼</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="control-group">
+                                <label for="showSearch">Search Show</label>
+                                <input type="text" id="showSearch" placeholder="Enter show name...">
+                            </div>
+                            <div class="button-row">
+                                <button onclick="searchShow()">TVDB</button>
+                                <button onclick="searchSonarr()" style="background: #e67e22;">Sonarr</button>
+                            </div>
+                            
+                            <div id="showResults" style="display: none; margin-top: 12px;">
+                                <div class="control-group">
+                                    <label>Select Show</label>
+                                    <select id="showSelect" onchange="onShowSelected()" size="4">
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div id="seasonSelect" style="display: none; margin-top: 12px;">
+                                <div class="control-group">
+                                    <label for="seasonNumber">Season</label>
+                                    <select id="seasonNumber" onchange="onSeasonSelected()">
+                                        <option value="">-- Select --</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Main Content -->
+            <div class="main-content">
+                <!-- Frame Extraction & Preview Section -->
+                <div class="frame-section">
+                    <div class="frame-controls">
+                        <div style="margin-bottom: 12px;">
+                            <strong style="color: #fff; display: block; margin-bottom: 6px;">🎬 Step 3: Extract Frames</strong>
+                            <div id="frameHint" style="font-size: 11px; color: #888;">
+                                For multi-episode files, try different start times
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 11px; color: #888; margin-bottom: 4px; display: block;">Start Time (MM:SS)</label>
+                                <input type="text" id="startTime" value="00:10" placeholder="MM:SS" pattern="[0-9]{1,2}:[0-9]{2}" title="Start time in MM:SS format" oninput="updateTimeRange()">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 11px; color: #888; margin-bottom: 4px; display: block;">Frames</label>
+                                <input type="number" id="numFrames" value="10" min="1" max="50" step="1" title="Number of frames" oninput="updateTimeRange()">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 11px; color: #888; margin-bottom: 4px; display: block;">Interval (sec)</label>
+                                <input type="number" id="interval" value="1" min="0.1" step="0.1" title="Interval between frames" oninput="updateTimeRange()">
+                            </div>
+                            <div style="padding-top: 20px; display: flex; gap: 5px;">
+                                <button onclick="jumpTime(-1)" style="background: #666; padding: 10px 12px;" title="Jump backward by frames × interval">◄</button>
+                                <button id="extractBtn" onclick="extractFrames()" style="background: #2e7d32;">Extract</button>
+                                <button onclick="jumpTime(1)" style="background: #666; padding: 10px 12px;" title="Jump forward by frames × interval">►</button>
+                            </div>
+                        </div>
+                        
+                        <div id="timeRange" style="font-size: 11px; color: #4CAF50; margin-bottom: 8px;">Will extract: 00:10 to 00:19 (10 frames)</div>
+                        
+                        <div id="videoInfo" style="font-size: 12px; color: #888; display: none;"></div>
+                        <div id="error" class="error" style="display: none; margin-top: 10px;"></div>
+                    </div>
+
+                    <div class="frame-preview">
+                        <div id="loading" class="loading" style="display: none;">Extracting frames...</div>
+                        <div id="framesGrid" class="frames-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Bottom Section: Episode Selection + Rename -->
+                <div class="bottom-section">
+                    <!-- Episode Selection -->
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <div style="background: #252525; padding: 12px; border-bottom: 2px solid #333; font-size: 11px; color: #888;">
+                            <strong style="color: #fff; display: block; margin-bottom: 6px;">📋 Step 4: Select Episode(s)</strong>
+                            Select the episode(s) this video contains
+                        </div>
+                        <div style="padding: 10px 15px; background: #1e1e1e; border-bottom: 1px solid #333;">
+                            <input type="text" id="episodeSearch" placeholder="Search episodes..." style="width: 100%; padding: 6px 10px; font-size: 11px;" oninput="filterEpisodes()">
+                        </div>
+                        <div style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 15px; min-height: 0;" id="episodePanel">
+                            <div id="episodeListContainer" style="display: flex; flex-wrap: wrap;">
+                                Loading...
+                            </div>
+                            <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; font-size: 10px;">
+                                <span class="info-badge missing">Missing</span>
+                                <span class="info-badge matched">Has File</span>
+                                <span class="info-badge multi">Multi-Episode</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rename Section -->
+                    <div id="renamePanel" style="display: none; flex-direction: column; padding: 15px; border-top: 2px solid #333; background: #1e1e1e;">
+                        <div style="margin-bottom: 12px;">
+                            <strong style="color: #fff; font-size: 13px;">✏️ Step 5: Rename File</strong>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: start;">
+                            <div>
+                                <label style="font-size: 11px; color: #888; margin-bottom: 4px; display: block;">Current Filename</label>
+                                <div id="currentFilename" style="background: #2a2a2a; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 11px; word-break: break-all; border: 1px solid #444; height: 58px; overflow-y: auto;"></div>
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; color: #888; margin-bottom: 4px; display: block;">New Filename</label>
+                                <textarea id="newFilename" rows="3" style="font-family: monospace; font-size: 11px; width: 100%; box-sizing: border-box; padding: 8px; border-radius: 4px; background: #2a2a2a; border: 1px solid #444; color: #fff; resize: none; overflow-y: auto; height: 58px;"></textarea>
+                            </div>
+                            <div style="padding-top: 20px;">
+                                <button onclick="renameFile()" style="background: #2e7d32; padding: 10px 20px; white-space: nowrap;">✓ Rename File</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Modal for enlarged view -->
+    <div id="modal" class="modal">
+        <button class="close-modal" onclick="closeModal()">✕ Close</button>
+        
+        <div class="modal-controls">
+            <div class="modal-control-group">
+                <label>Zoom</label>
+                <div class="slider-container">
+                    <input type="range" id="zoomSlider" min="100" max="400" value="100" step="10">
+                    <span class="slider-value" id="zoomValue">100%</span>
+                </div>
+            </div>
+            
+            <div class="modal-control-group">
+                <label>Brightness</label>
+                <div class="slider-container">
+                    <input type="range" id="brightnessSlider" min="50" max="200" value="100" step="5">
+                    <span class="slider-value" id="brightnessValue">100%</span>
+                </div>
+            </div>
+            
+            <div class="modal-control-group">
+                <label>Contrast</label>
+                <div class="slider-container">
+                    <input type="range" id="contrastSlider" min="50" max="200" value="100" step="5">
+                    <span class="slider-value" id="contrastValue">100%</span>
+                </div>
+            </div>
+            
+            <div class="modal-control-group">
+                <label>Saturation</label>
+                <div class="slider-container">
+                    <input type="range" id="saturationSlider" min="0" max="200" value="100" step="5">
+                    <span class="slider-value" id="saturationValue">100%</span>
+                </div>
+            </div>
+            
+            <div class="modal-control-group">
+                <button onclick="resetFilters()" style="width: 100%;">Reset All</button>
+            </div>
+        </div>
+        
+        <div class="modal-content">
+            <div class="modal-image-container">
+                <img id="modalImage" class="modal-image" src="" alt="Frame">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentVideos = [];
+        let currentShowId = null;
+        let currentSeason = null;
+        let selectedEpisodes = [];
+        let currentVideoPath = null;
+        let parsedInfo = null;
+        let currentSonarrId = null;
+        let usingSonarr = false;
+        let allEpisodes = [];
+        let selectedEpisodeNumbers = new Set();
+
+        // Toggle section collapse
+        function toggleSection(header) {
+            const content = header.nextElementSibling;
+            const arrow = header.querySelector('span:last-child');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                arrow.textContent = '▶';
+            }
+        }
+
+        // Load videos on page load
+        async function loadVideos() {
+            try {
+                const response = await fetch('/api/list_videos');
+                const folderTree = await response.json();
+                
+                // Flatten videos for currentVideos array
+                currentVideos = [];
+                Object.values(folderTree).forEach(folder => {
+                    currentVideos.push(...folder.files);
+                });
+                
+                const fileBrowser = document.getElementById('fileBrowser');
+                fileBrowser.innerHTML = '';
+                
+                if (Object.keys(folderTree).length === 0) {
+                    fileBrowser.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No videos found</div>';
+                    return;
+                }
+                
+                // Sort folders by name
+                const sortedFolders = Object.entries(folderTree).sort((a, b) => a[0].localeCompare(b[0]));
+                
+                sortedFolders.forEach(([folderName, folderData]) => {
+                    const folderItem = document.createElement('div');
+                    folderItem.className = 'folder-item';
+                    
+                    // Folder header
+                    const folderHeader = document.createElement('div');
+                    folderHeader.className = 'folder-header';
+                    folderHeader.innerHTML = `
+                        <span class="folder-toggle">▼</span>
+                        <span class="folder-icon">📁</span>
+                        <span class="folder-name">${folderName}</span>
+                    `;
+                    
+                    // Folder contents
+                    const folderContents = document.createElement('div');
+                    folderContents.className = 'folder-contents';
+                    
+                    folderData.files.forEach((video, index) => {
+                        const fileItem = document.createElement('div');
+                        fileItem.className = 'file-item';
+                        fileItem.innerHTML = `
+                            <span class="file-icon">📄</span>
+                            <span class="file-name">${video.name}</span>
+                        `;
+                        
+                        // Find global index in currentVideos
+                        const globalIndex = currentVideos.findIndex(v => v.path === video.path);
+                        fileItem.dataset.index = globalIndex;
+                        
+                        fileItem.addEventListener('click', function() {
+                            // Remove selection from all items
+                            document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+                            // Select this item
+                            this.classList.add('selected');
+                            onVideoSelected(globalIndex);
+                        });
+                        
+                        folderContents.appendChild(fileItem);
+                    });
+                    
+                    // Toggle folder
+                    folderHeader.addEventListener('click', () => {
+                        const toggle = folderHeader.querySelector('.folder-toggle');
+                        folderContents.classList.toggle('collapsed');
+                        toggle.classList.toggle('collapsed');
+                    });
+                    
+                    // Start folders collapsed by default
+                    folderContents.classList.add('collapsed');
+                    folderHeader.querySelector('.folder-toggle').classList.add('collapsed');
+                    
+                    folderItem.appendChild(folderHeader);
+                    folderItem.appendChild(folderContents);
+                    fileBrowser.appendChild(folderItem);
+                });
+            } catch (error) {
+                console.error('Error loading videos:', error);
+                document.getElementById('fileBrowser').innerHTML = '<div style="padding: 20px; text-align: center; color: #f44336;">Error loading videos</div>';
+            }
+        }
+
+        function onVideoSelected(index) {
+            const video = currentVideos[index];
+            currentVideoPath = video.path;
+            
+            // Auto-populate show search if we can parse it
+            const filename = video.name;
+            // Match show name before (year) or - S##E##
+            const match = filename.match(/^(.+?)(?:\s*\(\d{4}\)|\s*-\s*S\d+)/);
+            if (match && match[1].trim().length > 1) {
+                document.getElementById('showSearch').value = match[1].trim();
+            }
+        }
+
+        async function searchShow() {
+            const query = document.getElementById('showSearch').value;
+            if (!query) {
+                showError('Please enter a show name');
+                return;
+            }
+
+            usingSonarr = false;
+            
+            try {
+                const response = await fetch(`/api/search_series?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                const select = document.getElementById('showSelect');
+                select.innerHTML = '';
+                
+                data.series.forEach(show => {
+                    const option = document.createElement('option');
+                    option.value = show.id;
+                    option.textContent = `${show.name}${show.year ? ' (' + show.year + ')' : ''}`;
+                    select.appendChild(option);
+                });
+                
+                document.getElementById('showResults').style.display = 'block';
+                
+            } catch (error) {
+                showError('Error searching for show: ' + error.message);
+            }
+        }
+
+        async function searchSonarr() {
+            const query = document.getElementById('showSearch').value;
+            if (!query) {
+                showError('Please enter a show name');
+                return;
+            }
+
+            usingSonarr = true;
+            
+            try {
+                const response = await fetch(`/api/sonarr/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                const select = document.getElementById('showSelect');
+                select.innerHTML = '';
+                
+                data.series.forEach(show => {
+                    const option = document.createElement('option');
+                    option.value = show.id;
+                    option.dataset.sonarrId = show.id;
+                    option.dataset.tvdbId = show.tvdb_id;
+                    const stats = show.statistics;
+                    const missing = stats.episodeCount - stats.episodeFileCount;
+                    option.textContent = `${show.title}${show.year ? ' (' + show.year + ')' : ''} - ${stats.episodeFileCount}/${stats.episodeCount} episodes`;
+                    select.appendChild(option);
+                });
+                
+                document.getElementById('showResults').style.display = 'block';
+                
+            } catch (error) {
+                showError('Error searching Sonarr: ' + error.message);
+            }
+        }
+
+        async function onShowSelected() {
+            const select = document.getElementById('showSelect');
+            const showId = select.value;
+            
+            if (!showId) return;
+            
+            if (usingSonarr) {
+                const selectedOption = select.selectedOptions[0];
+                currentSonarrId = parseInt(selectedOption.dataset.sonarrId);
+                currentShowId = parseInt(selectedOption.dataset.tvdbId);
+            } else {
+                currentShowId = parseInt(showId);
+                currentSonarrId = null;
+            }
+            
+            try {
+                const response = await fetch(`/api/series/${currentShowId}/seasons`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                const seasonSelect = document.getElementById('seasonNumber');
+                seasonSelect.innerHTML = '<option value="">-- Select Season --</option>';
+                
+                const seasons = Object.keys(data.seasons).sort((a, b) => parseInt(a) - parseInt(b));
+                seasons.forEach(season => {
+                    const option = document.createElement('option');
+                    option.value = season;
+                    option.textContent = `Season ${season} (${data.seasons[season].length} episodes)`;
+                    seasonSelect.appendChild(option);
+                });
+                
+                document.getElementById('seasonSelect').style.display = 'block';
+                
+            } catch (error) {
+                showError('Error loading seasons: ' + error.message);
+            }
+        }
+
+        async function onSeasonSelected() {
+            const season = document.getElementById('seasonNumber').value;
+            
+            if (!season) return;
+            
+            currentSeason = parseInt(season);
+            selectedEpisodeNumbers.clear();
+            
+            try {
+                // Use unified endpoint that combines TVDB + Sonarr data
+                let url = `/api/unified/series/${currentShowId}/season/${season}`;
+                if (currentSonarrId) {
+                    url += `?sonarr_id=${currentSonarrId}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                allEpisodes = data.episodes;
+                renderEpisodeList();
+                
+                document.getElementById('episodePanel').style.display = 'block';
+                
+            } catch (error) {
+                showError('Error loading episodes: ' + error.message);
+            }
+        }
+
+        function renderEpisodeList() {
+            const container = document.getElementById('episodeListContainer');
+            container.innerHTML = '';
+            container.style.display = 'flex';
+            container.style.flexWrap = 'wrap';
+            container.style.gap = '0';
+            
+            // Group episodes by air date for multi-episode detection
+            const episodesByDate = new Map();
+            allEpisodes.forEach(episode => {
+                if (episode.air_date) {
+                    if (!episodesByDate.has(episode.air_date)) {
+                        episodesByDate.set(episode.air_date, []);
+                    }
+                    episodesByDate.get(episode.air_date).push(episode);
+                }
+            });
+            
+            // Track which episodes are in multi-episode groups
+            const multiEpisodeGroups = new Map();
+            episodesByDate.forEach((episodes, date) => {
+                if (episodes.length > 1) {
+                    multiEpisodeGroups.set(date, episodes);
+                }
+            });
+            
+            let lastAirDate = null;
+            let groupStart = false;
+            
+            allEpisodes.forEach((episode, index) => {
+                const item = document.createElement('div');
+                
+                // Check if this episode is part of a multi-episode group
+                const isMultiEpisode = multiEpisodeGroups.has(episode.air_date);
+                const multiGroup = isMultiEpisode ? multiEpisodeGroups.get(episode.air_date) : null;
+                const isFirstInGroup = multiGroup && multiGroup[0].episode === episode.episode;
+                const isLastInGroup = multiGroup && multiGroup[multiGroup.length - 1].episode === episode.episode;
+                
+                // Determine episode class based on status
+                let episodeClass = 'episode-item';
+                if (episode.status === 'missing') {
+                    episodeClass += ' missing';
+                } else if (episode.status === 'matched') {
+                    episodeClass += ' matched';
+                }
+                
+                if (selectedEpisodeNumbers.has(episode.episode)) {
+                    episodeClass += ' selected';
+                }
+                
+                item.className = episodeClass;
+                item.dataset.episode = episode.episode;
+                item.style.width = '200px';
+                item.style.position = 'relative';
+                
+                // Add spacing between different groups
+                if (!isMultiEpisode || isFirstInGroup) {
+                    item.style.marginLeft = '12px';
+                }
+                
+                // Add visual indicator for multi-episode groups - connect them as one block
+                if (isMultiEpisode) {
+                    item.style.borderColor = '#ff9800';
+                    item.style.borderWidth = '3px';
+                    item.style.borderRadius = '0';
+                    
+                    // Remove right border on all except last in group to connect them
+                    if (!isLastInGroup) {
+                        item.style.borderRightWidth = '0';
+                    }
+                    
+                    // Add rounded corners only on the outer edges of the group
+                    if (isFirstInGroup) {
+                        item.style.borderTopLeftRadius = '8px';
+                        item.style.borderBottomLeftRadius = '8px';
+                    }
+                    if (isLastInGroup) {
+                        item.style.borderTopRightRadius = '8px';
+                        item.style.borderBottomRightRadius = '8px';
+                    }
+                } else {
+                    // Single episodes also need margin
+                    item.style.marginRight = '12px';
+                }
+                
+                // Build HTML
+                let html = `
+                    <input type="checkbox" class="episode-checkbox" 
+                           ${selectedEpisodeNumbers.has(episode.episode) ? 'checked' : ''}>
+                    <div class="episode-details">
+                        <div class="episode-number">
+                            S${episode.season.toString().padStart(2, '0')}E${episode.episode.toString().padStart(2, '0')}
+                            ${episode.status === 'matched' ? ' ✓' : ''}
+                            ${episode.status === 'missing' ? ' ✗' : ''}
+                            ${isMultiEpisode ? ' 🔗' : ''}
+                        </div>
+                        <div class="episode-title">${episode.title}</div>
+                        <div class="episode-meta">
+                            ${episode.air_date || 'No air date'}
+                        </div>
+                `;
+                
+                // Show file info if episode has a file
+                if (episode.file_info) {
+                    const sizeGB = (episode.file_info.size / 1024 / 1024 / 1024).toFixed(2);
+                    html += `
+                        <div class="episode-file-info">
+                            ✓ Has file: ${episode.file_info.relativePath.split('/').pop().substring(0, 30)}...<br>
+                            ${sizeGB} GB
+                        </div>
+                    `;
+                }
+                
+                html += '</div>';
+                
+                item.innerHTML = html;
+                
+                // Click handler
+                item.addEventListener('click', function(e) {
+                    const checkbox = this.querySelector('.episode-checkbox');
+                    if (e.target !== checkbox) {
+                        checkbox.checked = !checkbox.checked;
+                    }
+                    toggleEpisodeSelection(episode.episode, checkbox.checked);
+                });
+                
+                container.appendChild(item);
+            });
+        }
+
+        function filterEpisodes() {
+            const searchText = document.getElementById('episodeSearch').value.toLowerCase();
+            const container = document.getElementById('episodeListContainer');
+            const items = container.querySelectorAll('.episode-item');
+            
+            items.forEach(item => {
+                const title = item.querySelector('.episode-title').textContent.toLowerCase();
+                const episodeNum = item.querySelector('.episode-number').textContent.toLowerCase();
+                
+                if (searchText === '' || title.includes(searchText) || episodeNum.includes(searchText)) {
+                    item.style.opacity = '1';
+                    item.style.transform = 'scale(1)';
+                } else {
+                    item.style.opacity = '0.3';
+                    item.style.transform = 'scale(0.95)';
+                }
+            });
+        }
+
+        function highlightDetectedEpisodes(episodeNumbers) {
+            const container = document.getElementById('episodeListContainer');
+            if (!container) return;
+            
+            const items = container.querySelectorAll('.episode-item');
+            
+            // Find groups of consecutive detected episodes
+            let inGroup = false;
+            let groupWrapper = null;
+            
+            items.forEach(item => {
+                const episodeNum = parseInt(item.dataset.episode);
+                const isDetected = episodeNumbers.includes(episodeNum);
+                
+                if (isDetected) {
+                    // Add filter for glow effect
+                    item.style.filter = 'drop-shadow(0 0 8px rgba(76, 175, 80, 0.8)) drop-shadow(0 0 4px rgba(76, 175, 80, 0.6))';
+                    item.style.transform = 'scale(1.02)';
+                    item.style.zIndex = '10';
+                    item.style.position = 'relative';
+                } else {
+                    // Reset other episodes
+                    item.style.filter = '';
+                    item.style.transform = '';
+                    item.style.zIndex = '';
+                }
+            });
+        }
+
+        function updateTimeRange() {
+            const timeInput = document.getElementById('startTime').value;
+            const numFrames = parseInt(document.getElementById('numFrames').value) || 10;
+            const interval = parseFloat(document.getElementById('interval').value) || 1;
+            
+            // Parse start time to seconds
+            let startSeconds;
+            if (timeInput.includes(':')) {
+                const [minutes, seconds] = timeInput.split(':').map(n => parseInt(n) || 0);
+                startSeconds = minutes * 60 + seconds;
+            } else {
+                startSeconds = parseFloat(timeInput) || 0;
+            }
+            
+            // Calculate end time
+            const endSeconds = startSeconds + ((numFrames - 1) * interval);
+            
+            // Format times as MM:SS
+            const formatTime = (totalSeconds) => {
+                const mins = Math.floor(totalSeconds / 60);
+                const secs = Math.floor(totalSeconds % 60);
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            };
+            
+            // Update display
+            const rangeEl = document.getElementById('timeRange');
+            if (rangeEl) {
+                rangeEl.textContent = `Will extract: ${formatTime(startSeconds)} to ${formatTime(endSeconds)} (${numFrames} frames)`;
+            }
+        }
+
+        function jumpTime(direction) {
+            // Get current values
+            const timeInput = document.getElementById('startTime').value;
+            const numFrames = parseInt(document.getElementById('numFrames').value) || 10;
+            const interval = parseFloat(document.getElementById('interval').value) || 1;
+            
+            // Parse current time to seconds
+            let currentSeconds;
+            if (timeInput.includes(':')) {
+                const [minutes, seconds] = timeInput.split(':').map(n => parseInt(n) || 0);
+                currentSeconds = minutes * 60 + seconds;
+            } else {
+                currentSeconds = parseFloat(timeInput) || 0;
+            }
+            
+            // Calculate jump amount (frames × interval)
+            const jumpAmount = numFrames * interval;
+            const newSeconds = Math.max(0, currentSeconds + (direction * jumpAmount));
+            
+            // Convert back to MM:SS
+            const newMinutes = Math.floor(newSeconds / 60);
+            const newSecondsRemainder = Math.floor(newSeconds % 60);
+            document.getElementById('startTime').value = 
+                `${newMinutes.toString().padStart(2, '0')}:${newSecondsRemainder.toString().padStart(2, '0')}`;
+            
+            // Update the time range display
+            updateTimeRange();
+        }
+
+        function toggleEpisodeSelection(episodeNum, selected) {
+            if (selected) {
+                selectedEpisodeNumbers.add(episodeNum);
+            } else {
+                selectedEpisodeNumbers.delete(episodeNum);
+            }
+            
+            // Update visual state
+            renderEpisodeList();
+            
+            // Update rename section
+            updateRenameSection();
+        }
+
+        // Extract frames from selected video
+        async function extractFrames() {
+            if (!currentVideoPath) {
+                showError('Please select a video first');
+                return;
+            }
+
+            const video = currentVideos.find(v => v.path === currentVideoPath);
+            if (!video) {
+                showError('Video not found');
+                return;
+            }
+            
+            // Parse MM:SS format to seconds
+            const timeInput = document.getElementById('startTime').value;
+            let startTime;
+            if (timeInput.includes(':')) {
+                const [minutes, seconds] = timeInput.split(':').map(n => parseInt(n) || 0);
+                startTime = minutes * 60 + seconds;
+            } else {
+                startTime = parseFloat(timeInput) || 0;
+            }
+            
+            const numFrames = parseInt(document.getElementById('numFrames').value);
+            const interval = parseFloat(document.getElementById('interval').value);
+
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('framesGrid').innerHTML = '';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('videoInfo').style.display = 'none';
+            document.getElementById('extractBtn').disabled = true;
+
+            try {
+                const response = await fetch('/api/extract_frames', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        video_path: video.path,
+                        start_time: startTime,
+                        num_frames: numFrames,
+                        interval: interval
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                parsedInfo = data.parsed_info;
+
+                // Update hint with smart multi-episode suggestions
+                const duration = data.duration;
+                const halfDuration = Math.floor(duration / 2);
+                const halfMinutes = Math.floor(halfDuration / 60);
+                const halfSeconds = halfDuration % 60;
+                const hintEl = document.getElementById('frameHint');
+                hintEl.innerHTML = `For multi-episode files, try E1=00:10, E2=${halfMinutes.toString().padStart(2, '0')}:${halfSeconds.toString().padStart(2, '0')} (half duration)`;
+
+                // Show video info
+                const videoInfo = document.getElementById('videoInfo');
+                let infoHtml = `
+                    <strong>Video:</strong> ${video.name}<br>
+                    <strong>Duration:</strong> ${formatTime(data.duration)}<br>
+                    <strong>Frames extracted:</strong> ${data.frames.length}
+                `;
+                
+                if (parsedInfo && parsedInfo.season) {
+                    infoHtml += `<br><strong>Detected:</strong> S${parsedInfo.season.toString().padStart(2, '0')}`;
+                    if (parsedInfo.episodes && parsedInfo.episodes.length > 0) {
+                        infoHtml += `E${parsedInfo.episodes.map(e => e.toString().padStart(2, '0')).join('-E')}`;
+                    }
+                    if (parsedInfo.title) {
+                        infoHtml += ` - ${parsedInfo.title}`;
+                    }
+                }
+                
+                videoInfo.innerHTML = infoHtml;
+                videoInfo.style.display = 'block';
+
+                // Highlight detected episodes in the list
+                if (parsedInfo && parsedInfo.episodes && parsedInfo.episodes.length > 0) {
+                    highlightDetectedEpisodes(parsedInfo.episodes);
+                }
+
+                // Display frames
+                displayFrames(data.frames);
+                
+                // Show rename section if we have show and episodes selected
+                updateRenameSection();
+
+            } catch (error) {
+                console.error('Error extracting frames:', error);
+                showError('Error extracting frames: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('extractBtn').disabled = false;
+            }
+        }
+
+        function updateRenameSection() {
+            const panel = document.getElementById('renamePanel');
+            if (!panel) {
+                console.error('Rename panel not found!');
+                return;
+            }
+            
+            if (!currentVideoPath || !currentShowId || !currentSeason || selectedEpisodeNumbers.size === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            // Get selected episodes data
+            selectedEpisodes = allEpisodes
+                .filter(ep => selectedEpisodeNumbers.has(ep.episode))
+                .sort((a, b) => a.episode - b.episode);
+            
+            if (selectedEpisodes.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            // Generate new filename
+            const videoPath = currentVideoPath;
+            const filename = videoPath.split('/').pop();
+            const extension = filename.split('.').pop();
+            
+            const showName = document.getElementById('showSelect').selectedOptions[0].textContent.split(' (')[0].split(' - ')[0];
+            const episodeStr = selectedEpisodes.length === 1 
+                ? `E${selectedEpisodes[0].episode.toString().padStart(2, '0')}`
+                : `E${selectedEpisodes[0].episode.toString().padStart(2, '0')}-E${selectedEpisodes[selectedEpisodes.length - 1].episode.toString().padStart(2, '0')}`;
+            
+            const titles = selectedEpisodes.map(e => e.title).join(' and ');
+            
+            // Try to preserve quality info from original filename
+            let quality = 'WEBDL-1080p';
+            const qualityMatch = filename.match(/\[([^\]]+)\]/);
+            if (qualityMatch) {
+                quality = qualityMatch[1];
+            }
+            
+            const newFilename = `${showName} - S${currentSeason.toString().padStart(2, '0')}${episodeStr} - ${titles} [${quality}].${extension}`;
+            
+            document.getElementById('currentFilename').textContent = filename;
+            document.getElementById('newFilename').value = newFilename;
+            panel.style.display = 'flex';
+        }
+
+        async function renameFile() {
+            const newName = document.getElementById('newFilename').value;
+            
+            if (!newName) {
+                showError('Please enter a new filename');
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to rename this file?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/rename_file', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        old_path: currentVideoPath,
+                        new_name: newName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                alert('File renamed successfully!');
+                
+                // Clear selections
+                selectedEpisodeNumbers.clear();
+                
+                // Clear episode search box
+                const episodeSearch = document.getElementById('episodeSearch');
+                if (episodeSearch) {
+                    episodeSearch.value = '';
+                }
+                
+                // Clear frame extraction
+                document.getElementById('framesGrid').innerHTML = '';
+                document.getElementById('videoInfo').style.display = 'none';
+                document.getElementById('frameHint').innerHTML = 'For multi-episode files, try different start times';
+                
+                // Update current path and reload videos
+                currentVideoPath = data.new_path;
+                loadVideos();
+                
+                // Re-render episode list and update rename section
+                renderEpisodeList();
+                updateRenameSection();
+                
+            } catch (error) {
+                showError('Error renaming file: ' + error.message);
+            }
+        }
+
+        function displayFrames(frames) {
+            const grid = document.getElementById('framesGrid');
+            grid.innerHTML = '';
+
+            frames.forEach(frame => {
+                const card = document.createElement('div');
+                card.className = 'frame-card';
+                card.onclick = () => openModal(frame);
+
+                const img = document.createElement('img');
+                img.className = 'frame-image';
+                img.src = frame.data;
+                img.alt = `Frame at ${frame.timestamp}s`;
+
+                const info = document.createElement('div');
+                info.className = 'frame-info';
+                info.innerHTML = `
+                    <strong>Frame ${frame.index + 1}</strong><br>
+                    Time: ${formatTime(frame.timestamp)}
+                `;
+
+                card.appendChild(img);
+                card.appendChild(info);
+                grid.appendChild(card);
+            });
+        }
+
+        function openModal(frame) {
+            const modal = document.getElementById('modal');
+            const modalImage = document.getElementById('modalImage');
+            
+            modalImage.src = frame.data;
+            modal.classList.add('active');
+            
+            resetFilters();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.remove('active');
+        }
+
+        // Zoom control
+        document.getElementById('zoomSlider').addEventListener('input', function() {
+            const value = this.value;
+            document.getElementById('zoomValue').textContent = value + '%';
+            applyFilters();
+        });
+
+        // Brightness control
+        document.getElementById('brightnessSlider').addEventListener('input', function() {
+            const value = this.value;
+            document.getElementById('brightnessValue').textContent = value + '%';
+            applyFilters();
+        });
+
+        // Contrast control
+        document.getElementById('contrastSlider').addEventListener('input', function() {
+            const value = this.value;
+            document.getElementById('contrastValue').textContent = value + '%';
+            applyFilters();
+        });
+
+        // Saturation control
+        document.getElementById('saturationSlider').addEventListener('input', function() {
+            const value = this.value;
+            document.getElementById('saturationValue').textContent = value + '%';
+            applyFilters();
+        });
+
+        function applyFilters() {
+            const modalImage = document.getElementById('modalImage');
+            const zoom = document.getElementById('zoomSlider').value;
+            const brightness = document.getElementById('brightnessSlider').value;
+            const contrast = document.getElementById('contrastSlider').value;
+            const saturation = document.getElementById('saturationSlider').value;
+            
+            modalImage.style.transform = `scale(${zoom / 100})`;
+            modalImage.style.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+        }
+
+        function resetFilters() {
+            document.getElementById('zoomSlider').value = 100;
+            document.getElementById('brightnessSlider').value = 100;
+            document.getElementById('contrastSlider').value = 100;
+            document.getElementById('saturationSlider').value = 100;
+            
+            document.getElementById('zoomValue').textContent = '100%';
+            document.getElementById('brightnessValue').textContent = '100%';
+            document.getElementById('contrastValue').textContent = '100%';
+            document.getElementById('saturationValue').textContent = '100%';
+            
+            applyFilters();
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+
+
+        // Add horizontal scroll support for frames grid
+        function enableHorizontalScroll() {
+            const framesGrid = document.getElementById('framesGrid');
+            if (framesGrid) {
+                framesGrid.addEventListener('wheel', (e) => {
+                    if (e.deltaY !== 0) {
+                        e.preventDefault();
+                        framesGrid.scrollLeft += e.deltaY;
+                    }
+                }, { passive: false });
+            }
+        }
+        
+
+
+        // Add horizontal scroll support for frames grid
+        function enableHorizontalScroll() {
+            const framesGrid = document.getElementById('framesGrid');
+            if (framesGrid) {
+                framesGrid.addEventListener('wheel', (e) => {
+                    if (e.deltaY !== 0) {
+                        e.preventDefault();
+                        framesGrid.scrollLeft += e.deltaY;
+                    }
+                }, { passive: false });
+            }
+        }
+
+        // Load videos on page load
+        loadVideos();
+        
+        // Enable horizontal scroll after a short delay to ensure elements exist
+        setTimeout(enableHorizontalScroll, 100);        // Enable horizontal scroll after a short delay to ensure elements exist
+        setTimeout(enableHorizontalScroll, 100);
+    </script>
+</body>
+</html>

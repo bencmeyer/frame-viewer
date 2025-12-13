@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Config files with sensitive data
+config.json
+.env
+
+# OCR and detection work files
+*.json
+!package.json
+!.env.example
+
+# Test files
+test_*.py
+debug_*.py
+example_*.py
+
+# Temporary files
+*.log
+*.tmp
+title_card_candidates/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation work files
+*.md
+!README.md
+!DOCKER.md
+
+# Video files
+*.mkv
+*.mp4
+*.avi
+Paw Patrol/

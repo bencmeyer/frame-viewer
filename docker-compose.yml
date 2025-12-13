@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  frame-viewer:
+    build: .
+    container_name: frame-viewer
+    ports:
+      - "5000:5000"
+    volumes:
+      - ${VIDEO_MOUNT:-./videos}:/videos:ro
+    environment:
+      - TVDB_API_KEY=${TVDB_API_KEY}
+      - SONARR_URL=${SONARR_URL}
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - VIDEO_PATH=/videos
+    restart: unless-stopped
