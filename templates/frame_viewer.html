@@ -768,6 +768,8 @@
         let usingSonarr = false;
         let allEpisodes = [];
         let selectedEpisodeNumbers = new Set();
+        let currentOffset = 0;
+        let hasMoreFolders = false;
 
         // Toggle section collapse
         function toggleSection(header) {
@@ -784,21 +786,33 @@
         }
 
         // Load videos on page load
-        async function loadVideos() {
+        async function loadVideos(append = false) {
             try {
-                const response = await fetch('/api/list_videos');
-                const folderTree = await response.json();
+                const response = await fetch(`/api/list_videos?offset=${currentOffset}&limit=100`);
+                const data = await response.json();
+                const folderTree = data.folders;
+                hasMoreFolders = data.hasMore;
                 
                 // Flatten videos for currentVideos array
-                currentVideos = [];
+                if (!append) {
+                    currentVideos = [];
+                }
                 Object.values(folderTree).forEach(folder => {
                     currentVideos.push(...folder.files);
                 });
                 
                 const fileBrowser = document.getElementById('fileBrowser');
-                fileBrowser.innerHTML = '';
+                if (!append) {
+                    fileBrowser.innerHTML = '';
+                }
                 
-                if (Object.keys(folderTree).length === 0) {
+                // Remove existing "Load More" button if present
+                const existingLoadMore = fileBrowser.querySelector('.load-more-btn');
+                if (existingLoadMore) {
+                    existingLoadMore.remove();
+                }
+                
+                if (!append && Object.keys(folderTree).length === 0) {
                     fileBrowser.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No videos found</div>';
                     return;
                 }
@@ -861,9 +875,28 @@
                     folderItem.appendChild(folderContents);
                     fileBrowser.appendChild(folderItem);
                 });
+                
+                // Add "Load More" button if there are more folders
+                if (hasMoreFolders) {
+                    const loadMoreBtn = document.createElement('div');
+                    loadMoreBtn.className = 'load-more-btn';
+                    loadMoreBtn.style.cssText = 'padding: 12px; text-align: center; background: #2a2a2a; margin: 10px; border-radius: 4px; cursor: pointer; border: 1px solid #444; transition: background 0.2s;';
+                    loadMoreBtn.innerHTML = '⬇️ Load More Folders';
+                    loadMoreBtn.onmouseover = () => loadMoreBtn.style.background = '#333';
+                    loadMoreBtn.onmouseout = () => loadMoreBtn.style.background = '#2a2a2a';
+                    loadMoreBtn.onclick = async () => {
+                        loadMoreBtn.innerHTML = '⏳ Loading...';
+                        loadMoreBtn.style.pointerEvents = 'none';
+                        currentOffset += 100;
+                        await loadVideos(true);
+                    };
+                    fileBrowser.appendChild(loadMoreBtn);
+                }
             } catch (error) {
                 console.error('Error loading videos:', error);
-                document.getElementById('fileBrowser').innerHTML = '<div style="padding: 20px; text-align: center; color: #f44336;">Error loading videos</div>';
+                if (!append) {
+                    document.getElementById('fileBrowser').innerHTML = '<div style="padding: 20px; text-align: center; color: #f44336;">Error loading videos</div>';
+                }
             }
         }
 

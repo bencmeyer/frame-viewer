@@ -133,12 +133,16 @@ def list_videos():
     """List all video files in the workspace organized by folder"""
     video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
     
+    offset = int(request.args.get('offset', 0))
+    limit = int(request.args.get('limit', 100))
+    
     workspace_path = Path(VIDEO_PATH)
     
     # Build folder tree structure with natural sorting
     folder_tree = {}
     folder_count = 0
-    max_folders = 500  # Limit to prevent timeout on huge libraries
+    folders_returned = 0
+    max_folders_per_request = limit
     
     print(f"Scanning video library at: {workspace_path}")
     
@@ -169,23 +173,33 @@ def list_videos():
             rel_path = Path(root).relative_to(workspace_path)
             folder_key = str(rel_path) if str(rel_path) != '.' else 'Root'
             
-            folder_tree[folder_key] = {
-                'path': str(root),
-                'files': sorted(video_files, key=lambda x: natural_sort_key(x['name'])),
-                'type': 'folder'
-            }
+            # Check if we're past the offset
+            if folder_count >= offset:
+                folder_tree[folder_key] = {
+                    'path': str(root),
+                    'files': sorted(video_files, key=lambda x: natural_sort_key(x['name'])),
+                    'type': 'folder'
+                }
+                folders_returned += 1
             
             folder_count += 1
             if folder_count % 50 == 0:
                 print(f"Scanned {folder_count} folders with videos...")
             
-            # Limit total folders to prevent timeout
-            if folder_count >= max_folders:
-                print(f"Reached folder limit ({max_folders}), stopping scan")
+            # Stop when we've returned enough folders
+            if folders_returned >= max_folders_per_request:
+                print(f"Returned {folders_returned} folders (offset {offset})")
                 break
     
-    print(f"Scan complete: {folder_count} folders, {sum(len(f['files']) for f in folder_tree.values())} videos")
-    return jsonify(folder_tree)
+    has_more = folders_returned >= max_folders_per_request
+    print(f"Scan complete: returned {folders_returned} folders (offset {offset}), total scanned: {folder_count}")
+    return jsonify({
+        'folders': folder_tree,
+        'offset': offset,
+        'limit': limit,
+        'returned': folders_returned,
+        'hasMore': has_more
+    })
 
 
 @app.route('/api/extract_frames', methods=['POST'])
