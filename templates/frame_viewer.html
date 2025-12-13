@@ -1121,12 +1121,13 @@
         // Load videos on page load
         async function loadVideos(append = false) {
             try {
-                const response = await fetch(`/api/list_videos?offset=${currentOffset}&limit=100`);
+                const response = await fetch(`/api/list_videos?offset=${currentOffset}&limit=200`);
                 const data = await response.json();
                 const folderTree = data.folders;
                 hasMoreFolders = data.hasMore;
                 
                 // Flatten videos for currentVideos array
+                const startingIndex = currentVideos.length;
                 if (!append) {
                     currentVideos = [];
                 }
@@ -1178,8 +1179,10 @@
                             <span class="file-name">${video.name}</span>
                         `;
                         
-                        // Find global index in currentVideos
-                        const globalIndex = currentVideos.findIndex(v => v.path === video.path);
+                        // Calculate global index - search from startingIndex to avoid duplicates
+                        const globalIndex = append ? 
+                            currentVideos.findIndex((v, i) => i >= startingIndex && v.path === video.path) :
+                            currentVideos.findIndex(v => v.path === video.path);
                         fileItem.dataset.index = globalIndex;
                         
                         fileItem.addEventListener('click', function() {
@@ -1220,7 +1223,7 @@
                     loadMoreBtn.onclick = async () => {
                         loadMoreBtn.innerHTML = '⏳ Loading...';
                         loadMoreBtn.style.pointerEvents = 'none';
-                        currentOffset += 100;
+                        currentOffset += 200;
                         await loadVideos(true);
                     };
                     fileBrowser.appendChild(loadMoreBtn);

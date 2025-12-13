@@ -134,7 +134,7 @@ def list_videos():
     video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
     
     offset = int(request.args.get('offset', 0))
-    limit = int(request.args.get('limit', 100))
+    limit = int(request.args.get('limit', 200))
     
     workspace_path = Path(VIDEO_PATH)
     
