@@ -659,6 +659,35 @@ def sonarr_list_series():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/sonarr/series/<int:series_id>/refresh', methods=['POST'])
+def sonarr_refresh_series(series_id):
+    """Trigger Sonarr to refresh and rescan files for a series"""
+    if not SONARR_BASE_URL or not SONARR_API_KEY:
+        return jsonify({'error': 'Sonarr not configured'}), 500
+    
+    try:
+        headers = {"X-Api-Key": SONARR_API_KEY}
+        url = f"{SONARR_BASE_URL}/command"
+        
+        # Send RescanSeries command
+        response = requests.post(
+            url,
+            headers=headers,
+            json={"name": "RescanSeries", "seriesId": series_id},
+            timeout=10
+        )
+        response.raise_for_status()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Refresh initiated for series ID {series_id}',
+            'command': response.json()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 def parse_filename(filepath):
     """
     Parse season and episode information from filename

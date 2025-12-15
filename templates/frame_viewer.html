@@ -217,9 +217,11 @@
 
         .frame-image {
             width: 100%;
-            height: auto;
+            height: 150px;
             display: block;
             background: #1a1a1a;
+            object-fit: contain;
+            object-position: center;
         }
 
         .frame-info {
@@ -547,120 +549,12 @@
             font-family: monospace;
         }
 
-        /* Mobile menu toggle */
-        .mobile-menu-toggle {
-            display: none;
-            position: fixed;
-            top: 80px;
-            left: 10px;
-            z-index: 999;
-            background: #0066cc;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 18px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        .mobile-menu-toggle:hover {
-            background: #0052a3;
-        }
-
-        /* Responsive Design - Tablets (768px and below) */
+        /* Mobile Responsive Design */
         @media screen and (max-width: 768px) {
-            .app-header h1 {
-                font-size: 16px;
-            }
-
-            .mobile-menu-toggle {
-                display: block;
-            }
-
-            .left-panel {
-                position: fixed;
-                left: -350px;
-                top: 0;
-                height: 100vh;
-                z-index: 998;
-                transition: left 0.3s ease;
-                box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
-            }
-
-            .left-panel.active {
-                left: 0;
-            }
-
-            .main-content {
-                width: 100%;
-            }
-
-            .frame-controls {
-                padding: 10px;
-            }
-
-            .frame-controls > div {
-                flex-direction: column;
-                gap: 8px !important;
-            }
-
-            .frame-controls > div > div {
-                width: 100% !important;
-                flex: none !important;
-            }
-
-            .frame-controls button {
-                width: 100%;
-            }
-
-            .bottom-section {
-                height: 400px;
-                min-height: 400px;
-                max-height: 400px;
-            }
-
-            .episode-item {
-                width: 180px !important;
-            }
-
-            #renamePanel {
-                padding: 10px;
-            }
-
-            #renamePanel > div:nth-child(2) {
-                grid-template-columns: 1fr !important;
-                gap: 10px !important;
-            }
-
-            #renamePanel button {
-                width: 100% !important;
-                padding: 12px !important;
-            }
-
-            .modal-controls {
-                position: fixed;
-                top: auto;
-                bottom: 20px;
-                right: 20px;
-                left: 20px;
-                max-width: none;
-                min-width: 0;
-            }
-
-            .close-modal {
-                top: 10px;
-                left: 10px;
-                padding: 8px 15px;
-                font-size: 14px;
-            }
-        }
-
-        /* Mobile Phones (480px and below) */
-        @media screen and (max-width: 480px) {
             body {
                 overflow-y: auto;
                 overflow-x: hidden;
+                height: auto;
             }
 
             .app-container {
@@ -668,186 +562,41 @@
                 min-height: 100vh;
             }
 
-            .app-header {
-                padding: 10px 50px 10px 15px;
-            }
-
-            .app-header h1 {
-                font-size: 14px;
-            }
-
             .app-body {
                 flex-direction: column;
-                overflow-y: auto;
-                overflow-x: hidden;
+                overflow-y: visible;
             }
 
             .left-panel {
-                position: relative;
-                left: 0;
                 width: 100%;
                 min-width: 100%;
                 border-right: none;
                 border-bottom: 2px solid #333;
                 max-height: none;
-                display: none;
-            }
-
-            .left-panel.active {
-                display: flex;
-            }
-
-            .mobile-menu-toggle {
-                position: fixed;
-                top: 65px;
-                left: 10px;
             }
 
             .main-content {
+                width: 100%;
                 overflow-y: visible;
             }
 
             .frame-section {
-                min-height: 400px;
-            }
-
-            .frame-controls {
-                padding: 8px;
-            }
-
-            .frame-controls > div:first-child {
-                margin-bottom: 8px;
-            }
-
-            .frame-controls > div:nth-child(2) {
-                flex-direction: column !important;
-                align-items: stretch !important;
-            }
-
-            .frame-controls > div:nth-child(2) > div {
-                width: 100% !important;
-            }
-
-            .frame-controls > div:nth-child(2) > div:last-child {
-                display: flex;
-                flex-direction: row;
-                gap: 5px;
-                padding-top: 0 !important;
-            }
-
-            .frame-controls > div:nth-child(2) > div:last-child button {
-                flex: 1;
-            }
-
-            .frame-controls input,
-            .frame-controls button {
-                font-size: 14px;
-            }
-
-            .frames-grid {
-                padding: 10px;
-                padding-bottom: 20px;
-            }
-
-            .frames-grid .frame-card {
-                width: 150px;
+                min-height: 300px;
             }
 
             .bottom-section {
                 height: auto;
                 min-height: 300px;
                 max-height: none;
-                position: relative;
             }
 
             #episodeListContainer {
                 flex-direction: column !important;
-                align-items: stretch;
             }
 
             .episode-item {
                 width: 100% !important;
                 margin: 0 0 8px 0 !important;
-                border-radius: 4px !important;
-            }
-
-            .episode-item.multi-candidate {
-                border-radius: 4px !important;
-            }
-
-            #renamePanel {
-                padding: 10px;
-            }
-
-            #renamePanel > div:nth-child(2) {
-                grid-template-columns: 1fr !important;
-                gap: 10px !important;
-            }
-
-            #renamePanel > div:nth-child(2) > div:last-child {
-                padding-top: 0 !important;
-            }
-
-            #renamePanel button {
-                width: 100% !important;
-            }
-
-            #currentFilename,
-            #newFilename {
-                font-size: 10px;
-                height: auto !important;
-                min-height: 50px;
-            }
-
-            .modal-content {
-                padding: 10px;
-            }
-
-            .modal-image {
-                max-width: 95vw;
-                max-height: 60vh;
-            }
-
-            .modal-controls {
-                position: fixed;
-                top: auto;
-                bottom: 10px;
-                right: 10px;
-                left: 10px;
-                max-width: none;
-                min-width: 0;
-                padding: 15px;
-                max-height: 30vh;
-                overflow-y: auto;
-            }
-
-            .modal-control-group label {
-                font-size: 11px;
-            }
-
-            .close-modal {
-                top: 10px;
-                left: 10px;
-                padding: 6px 12px;
-                font-size: 12px;
-            }
-
-            .section-header {
-                font-size: 12px;
-                padding: 8px 12px;
-            }
-
-            .section-content {
-                padding: 10px;
-            }
-
-            select, input, button {
-                font-size: 14px;
-                padding: 10px;
-            }
-
-            .control-group label {
-                font-size: 11px;
             }
         }
     </style>
@@ -859,15 +608,10 @@
             <h1>🎬 Episode Validator & Frame Viewer</h1>
         </div>
 
-        <!-- Mobile Menu Toggle -->
-        <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">
-            ☰
-        </button>
-
         <!-- Main Body -->
         <div class="app-body">
             <!-- Left Panel: File & Show Selection -->
-            <div class="left-panel" id="leftPanel">
+            <div class="left-panel">
                 <div style="background: #252525; padding: 12px; border-bottom: 2px solid #333; font-size: 11px; color: #888;">
                     <strong style="color: #fff; display: block; margin-bottom: 6px;">📋 Step 1-2</strong>
                     1. Select video file<br>
@@ -901,6 +645,11 @@
                             <div class="button-row">
                                 <button onclick="searchShow()">TVDB</button>
                                 <button onclick="searchSonarr()" style="background: #e67e22;">Sonarr</button>
+                            </div>
+                            <div id="refreshSonarrBtn" style="display: none; margin-top: 8px;">
+                                <button onclick="refreshSonarrSeries()" style="background: #27ae60; width: 100%;" title="Refresh and rescan files for this series in Sonarr">
+                                    🔄 Refresh Files
+                                </button>
                             </div>
                             
                             <div id="showResults" style="display: none; margin-top: 12px;">
@@ -1079,30 +828,6 @@
         let selectedEpisodeNumbers = new Set();
         let currentOffset = 0;
         let hasMoreFolders = false;
-
-        // Use matchMedia for efficient mobile detection
-        const mobileQuery = window.matchMedia('(max-width: 480px)');
-
-        // Toggle mobile menu
-        function toggleMobileMenu() {
-            const leftPanel = document.getElementById('leftPanel');
-            leftPanel.classList.toggle('active');
-        }
-
-        // Close mobile menu when clicking outside
-        document.addEventListener('click', function(event) {
-            const leftPanel = document.getElementById('leftPanel');
-            const menuToggle = document.querySelector('.mobile-menu-toggle');
-            
-            // Only apply on mobile (when menu toggle is visible) using matchMedia
-            if (mobileQuery.matches && menuToggle && leftPanel) {
-                const isClickInside = leftPanel.contains(event.target) || menuToggle.contains(event.target);
-                
-                if (!isClickInside && leftPanel.classList.contains('active')) {
-                    leftPanel.classList.remove('active');
-                }
-            }
-        });
 
         // Toggle section collapse
         function toggleSection(header) {
@@ -1317,9 +1042,47 @@
                 });
                 
                 document.getElementById('showResults').style.display = 'block';
+                document.getElementById('refreshSonarrBtn').style.display = 'block';
                 
             } catch (error) {
                 showError('Error searching Sonarr: ' + error.message);
+            }
+        }
+
+        // Refresh and rescan files for the selected Sonarr series
+        async function refreshSonarrSeries() {
+            if (!currentSonarrId) {
+                showError('No Sonarr series selected');
+                return;
+            }
+
+            const refreshBtn = document.querySelector('#refreshSonarrBtn button');
+            const originalText = refreshBtn.textContent;
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '⏳ Refreshing...';
+
+            try {
+                const response = await fetch(`/api/sonarr/series/${currentSonarrId}/refresh`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    refreshBtn.textContent = originalText;
+                    refreshBtn.disabled = false;
+                } else {
+                    refreshBtn.textContent = '✓ Refresh Started';
+                    setTimeout(() => {
+                        refreshBtn.textContent = originalText;
+                        refreshBtn.disabled = false;
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                showError('Error refreshing Sonarr: ' + error.message);
+                refreshBtn.textContent = originalText;
+                refreshBtn.disabled = false;
             }
         }
 
