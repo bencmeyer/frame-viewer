@@ -1080,6 +1080,9 @@
         let currentOffset = 0;
         let hasMoreFolders = false;
 
+        // Use matchMedia for efficient mobile detection
+        const mobileQuery = window.matchMedia('(max-width: 480px)');
+
         // Toggle mobile menu
         function toggleMobileMenu() {
             const leftPanel = document.getElementById('leftPanel');
@@ -1091,8 +1094,8 @@
             const leftPanel = document.getElementById('leftPanel');
             const menuToggle = document.querySelector('.mobile-menu-toggle');
             
-            // Only apply on mobile (when menu toggle is visible)
-            if (window.innerWidth <= 480 && menuToggle && leftPanel) {
+            // Only apply on mobile (when menu toggle is visible) using matchMedia
+            if (mobileQuery.matches && menuToggle && leftPanel) {
                 const isClickInside = leftPanel.contains(event.target) || menuToggle.contains(event.target);
                 
                 if (!isClickInside && leftPanel.classList.contains('active')) {
