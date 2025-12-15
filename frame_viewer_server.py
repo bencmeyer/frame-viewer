@@ -20,10 +20,10 @@ app = Flask(__name__)
 CORS(app)
 
 # Load configuration from environment variables
-TVDB_API_KEY = os.getenv('TVDB_API_KEY', '585432a6-f441-4db3-a106-2d5a05fa95d7')
-SONARR_URL = os.getenv('SONARR_URL', 'http://10.0.1.90:8993')
-SONARR_API_KEY = os.getenv('SONARR_API_KEY', 'd6903236b2c24107b60c5f9423fc30e7')
-VIDEO_PATH = os.getenv('VIDEO_PATH', f'/run/user/{os.getuid()}/gvfs/smb-share:server=redpanda.local,share=data/media/tv')
+TVDB_API_KEY = os.getenv('TVDB_API_KEY')
+SONARR_URL = os.getenv('SONARR_URL')
+SONARR_API_KEY = os.getenv('SONARR_API_KEY')
+VIDEO_PATH = os.getenv('VIDEO_PATH', './videos')
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
 FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))
 FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'

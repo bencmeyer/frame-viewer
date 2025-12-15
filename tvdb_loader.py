@@ -10,8 +10,6 @@ from datetime import datetime
 
 # TVDB API Configuration
 TVDB_API_URL = "https://api4.thetvdb.com/v4"
-TVDB_API_KEY = "585432a6-f441-4db3-a106-2d5a05fa95d7"
-TVDB_SERIES_ID = 272472  # Paw Patrol
 
 class TVDBClient:
     """Client for TVDB API v4."""

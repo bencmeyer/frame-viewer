@@ -28,6 +28,11 @@ example_*.py
 *.tmp
 title_card_candidates/
 
+# User data directories
+videos/
+Paw Patrol/
+cleanup_old_files.sh
+
 # IDE
 .vscode/
 .idea/
