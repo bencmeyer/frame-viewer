@@ -98,11 +98,10 @@ def _start_scan():
     _library_scan_thread = t
     t.start()
 
-# Start the scan at import time so it's ready before the first request.
-# With Werkzeug's reloader, WERKZEUG_RUN_MAIN is set in the child worker
-# process that actually serves traffic — skip the parent stat-watcher.
-if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not FLASK_DEBUG:
-    _start_scan()
+# Start the background scan immediately at module load time.
+# This runs in every process (reloader watcher + worker), but only
+# the worker process actually serves requests, so its cache is what matters.
+_start_scan()
 
 def sonarr_request(endpoint: str, params: dict = None) -> dict:
     """Make authenticated request to Sonarr API."""
