@@ -11,7 +11,6 @@ import json
 import base64
 import re
 import threading
-import time
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -54,8 +53,6 @@ def _scan_library():
     video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
     workspace_path = Path(VIDEO_PATH)
     print(f"[scan] Starting background library scan at: {workspace_path}")
-    with _library_scan_lock:
-        _library_scan_status = 'scanning'
     try:
         new_cache = {}
         folder_count = 0
@@ -93,7 +90,9 @@ def _scan_library():
         print(f"[scan] Error: {e}")
 
 def _start_scan():
-    global _library_scan_thread
+    global _library_scan_thread, _library_scan_status
+    with _library_scan_lock:
+        _library_scan_status = 'scanning'
     t = threading.Thread(target=_scan_library, daemon=True)
     _library_scan_thread = t
     t.start()
@@ -202,20 +201,8 @@ def list_videos():
 
     with _library_scan_lock:
         status = _library_scan_status
-        # Serve a snapshot of the cache so the lock isn't held during JSON serialisation
         all_keys = list(_library_cache.keys())
         cache_snapshot = _library_cache
-
-    # If nothing cached yet, trigger a synchronous wait for up to 2 s then return what we have
-    if status in ('idle', 'scanning') and len(all_keys) == 0:
-        deadline = time.time() + 2
-        while time.time() < deadline:
-            time.sleep(0.1)
-            with _library_scan_lock:
-                all_keys = list(_library_cache.keys())
-                cache_snapshot = _library_cache
-            if all_keys:
-                break
 
     sorted_keys = sorted(all_keys, key=_natural_sort_key)
     page_keys = sorted_keys[offset:offset + limit]

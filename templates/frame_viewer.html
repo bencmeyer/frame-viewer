@@ -985,8 +985,9 @@
                 const scanStatus = data.scanStatus || 'complete';
 
                 // Show/hide scanning banner and start polling if still scanning
-                setScanBanner(scanStatus, data.total || 0);
-                if (scanStatus === 'scanning') {
+                const stillScanning = scanStatus === 'scanning' || scanStatus === 'idle';
+                setScanBanner(stillScanning ? 'scanning' : scanStatus, data.total || 0);
+                if (stillScanning) {
                     startScanPoll();
                 }
 
@@ -1011,7 +1012,7 @@
                 }
 
                 if (!append && Object.keys(folderTree).length === 0) {
-                    if (scanStatus === 'scanning') {
+                    if (stillScanning) {
                         fileBrowser.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">Scanning… folders will appear when ready</div>';
                     } else {
                         fileBrowser.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No videos found</div>';
