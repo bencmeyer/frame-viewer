@@ -10,6 +10,8 @@ import subprocess
 import json
 import base64
 import re
+import threading
+import time
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -36,6 +38,65 @@ else:
 
 # Global TVDB client
 tvdb_client = None
+
+# ── Library scan cache ──────────────────────────────────────────────────────
+_library_cache = {}          # folder_key -> {path, files, type}
+_library_scan_status = 'idle'  # idle | scanning | complete | error
+_library_scan_thread = None
+_library_scan_lock = threading.Lock()
+
+def _natural_sort_key(s):
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split('([0-9]+)', s)]
+
+def _scan_library():
+    global _library_cache, _library_scan_status
+    video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
+    workspace_path = Path(VIDEO_PATH)
+    print(f"[scan] Starting background library scan at: {workspace_path}")
+    with _library_scan_lock:
+        _library_scan_status = 'scanning'
+    try:
+        new_cache = {}
+        folder_count = 0
+        for root, dirs, files in os.walk(workspace_path):
+            dirs[:] = sorted(
+                [d for d in dirs if not d.startswith('.') and d != '__pycache__'],
+                key=_natural_sort_key
+            )
+            video_files = []
+            for file in files:
+                if Path(file).suffix.lower() in video_extensions:
+                    video_files.append({
+                        'path': str(Path(root) / file),
+                        'name': file,
+                        'type': 'file'
+                    })
+            if video_files:
+                rel_path = Path(root).relative_to(workspace_path)
+                folder_key = str(rel_path) if str(rel_path) != '.' else 'Root'
+                new_cache[folder_key] = {
+                    'path': str(root),
+                    'files': sorted(video_files, key=lambda x: _natural_sort_key(x['name'])),
+                    'type': 'folder'
+                }
+                folder_count += 1
+                if folder_count % 100 == 0:
+                    print(f"[scan] {folder_count} folders scanned...")
+        with _library_scan_lock:
+            _library_cache = new_cache
+            _library_scan_status = 'complete'
+        print(f"[scan] Complete: {folder_count} folders cached")
+    except Exception as e:
+        with _library_scan_lock:
+            _library_scan_status = 'error'
+        print(f"[scan] Error: {e}")
+
+def _start_scan():
+    global _library_scan_thread
+    t = threading.Thread(target=_scan_library, daemon=True)
+    _library_scan_thread = t
+    t.start()
 
 def sonarr_request(endpoint: str, params: dict = None) -> dict:
     """Make authenticated request to Sonarr API."""
@@ -130,76 +191,61 @@ def index():
 
 @app.route('/api/list_videos', methods=['GET'])
 def list_videos():
-    """List all video files in the workspace organized by folder"""
-    video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
-    
+    """List all video files from the in-memory cache."""
     offset = int(request.args.get('offset', 0))
-    limit = int(request.args.get('limit', 200))
-    
-    workspace_path = Path(VIDEO_PATH)
-    
-    # Build folder tree structure with natural sorting
-    folder_tree = {}
-    folder_count = 0
-    folders_returned = 0
-    max_folders_per_request = limit
-    
-    print(f"Scanning video library at: {workspace_path}")
-    
-    for root, dirs, files in os.walk(workspace_path):
-        # Skip __pycache__ and hidden directories
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
-        
-        # Sort directories naturally (Season 1, Season 2, ..., Season 10, Season 11)
-        def natural_sort_key(s):
-            import re
-            return [int(text) if text.isdigit() else text.lower() 
-                    for text in re.split('([0-9]+)', s)]
-        dirs.sort(key=natural_sort_key)
-        
-        # Get video files in this directory
-        video_files = []
-        for file in files:
-            if Path(file).suffix.lower() in video_extensions:
-                full_path = Path(root) / file
-                video_files.append({
-                    'path': str(full_path),
-                    'name': file,
-                    'type': 'file'
-                })
-        
-        # Only include folders with video files
-        if video_files:
-            rel_path = Path(root).relative_to(workspace_path)
-            folder_key = str(rel_path) if str(rel_path) != '.' else 'Root'
-            
-            # Check if we're past the offset
-            if folder_count >= offset:
-                folder_tree[folder_key] = {
-                    'path': str(root),
-                    'files': sorted(video_files, key=lambda x: natural_sort_key(x['name'])),
-                    'type': 'folder'
-                }
-                folders_returned += 1
-            
-            folder_count += 1
-            if folder_count % 50 == 0:
-                print(f"Scanned {folder_count} folders with videos...")
-            
-            # Stop when we've returned enough folders
-            if folders_returned >= max_folders_per_request:
-                print(f"Returned {folders_returned} folders (offset {offset})")
+    limit = int(request.args.get('limit', 500))
+
+    with _library_scan_lock:
+        status = _library_scan_status
+        # Serve a snapshot of the cache so the lock isn't held during JSON serialisation
+        all_keys = list(_library_cache.keys())
+        cache_snapshot = _library_cache
+
+    # If nothing cached yet, trigger a synchronous wait for up to 2 s then return what we have
+    if status in ('idle', 'scanning') and len(all_keys) == 0:
+        deadline = time.time() + 2
+        while time.time() < deadline:
+            time.sleep(0.1)
+            with _library_scan_lock:
+                all_keys = list(_library_cache.keys())
+                cache_snapshot = _library_cache
+            if all_keys:
                 break
-    
-    has_more = folders_returned >= max_folders_per_request
-    print(f"Scan complete: returned {folders_returned} folders (offset {offset}), total scanned: {folder_count}")
+
+    sorted_keys = sorted(all_keys, key=_natural_sort_key)
+    page_keys = sorted_keys[offset:offset + limit]
+    folder_tree = {k: cache_snapshot[k] for k in page_keys if k in cache_snapshot}
+
+    has_more = (offset + limit) < len(sorted_keys)
     return jsonify({
         'folders': folder_tree,
         'offset': offset,
         'limit': limit,
-        'returned': folders_returned,
-        'hasMore': has_more
+        'returned': len(folder_tree),
+        'total': len(sorted_keys),
+        'hasMore': has_more,
+        'scanStatus': status
     })
+
+
+@app.route('/api/scan_status', methods=['GET'])
+def scan_status():
+    """Return current library scan status and folder count."""
+    with _library_scan_lock:
+        return jsonify({'status': _library_scan_status, 'folders': len(_library_cache)})
+
+
+@app.route('/api/refresh_library', methods=['POST'])
+def refresh_library():
+    """Invalidate the cache and re-scan the library in the background."""
+    global _library_cache, _library_scan_status
+    with _library_scan_lock:
+        if _library_scan_status == 'scanning':
+            return jsonify({'message': 'Scan already in progress'}), 409
+        _library_cache = {}
+        _library_scan_status = 'idle'
+    _start_scan()
+    return jsonify({'message': 'Scan started'})
 
 
 @app.route('/api/extract_frames', methods=['POST'])
@@ -729,4 +775,5 @@ def parse_filename(filepath):
 
 
 if __name__ == '__main__':
+    _start_scan()  # kick off background library scan before serving requests
     app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT)

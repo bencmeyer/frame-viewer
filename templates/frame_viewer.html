@@ -613,6 +613,11 @@
                 margin: 0 0 8px 0 !important;
             }
         }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -881,6 +886,7 @@
         let selectedEpisodeNumbers = new Set();
         let currentOffset = 0;
         let hasMoreFolders = false;
+        let _scanPollTimer = null;
 
         // Toggle section collapse
         function toggleSection(header) {
@@ -896,14 +902,94 @@
             }
         }
 
+        // Natural sort comparator for show/season names
+        function naturalSortCmp(a, b) {
+            const re = /(\d+)/g;
+            const aParts = a.split(re);
+            const bParts = b.split(re);
+            for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+                const aSeg = aParts[i] || '';
+                const bSeg = bParts[i] || '';
+                const aNum = parseInt(aSeg, 10);
+                const bNum = parseInt(bSeg, 10);
+                if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
+                if (aSeg.toLowerCase() < bSeg.toLowerCase()) return -1;
+                if (aSeg.toLowerCase() > bSeg.toLowerCase()) return 1;
+            }
+            return 0;
+        }
+
+        // Build a file item element
+        function makeFileItem(video, globalIndex) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <span class="file-icon">📄</span>
+                <span class="file-name">${video.name}</span>
+            `;
+            fileItem.dataset.index = globalIndex;
+            fileItem.addEventListener('click', function() {
+                document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+                this.classList.add('selected');
+                onVideoSelected(globalIndex);
+            });
+            return fileItem;
+        }
+
+        // Show/update/remove the scan progress banner above the file list
+        function setScanBanner(status, count) {
+            const container = document.getElementById('fileBrowser').parentElement;
+            let banner = document.getElementById('scanStatusBanner');
+            if (status === 'complete' || status === 'idle') {
+                if (banner) banner.remove();
+                return;
+            }
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'scanStatusBanner';
+                banner.style.cssText = 'padding: 6px 12px; background: #1a3a1a; border-bottom: 1px solid #2a5a2a; color: #7ec87e; font-size: 12px; display: flex; align-items: center; gap: 6px;';
+                const fb = document.getElementById('fileBrowser');
+                fb.parentElement.insertBefore(banner, fb);
+            }
+            banner.innerHTML = status === 'scanning'
+                ? `<span style="animation: spin 1s linear infinite; display:inline-block">⟳</span> Scanning library… ${count > 0 ? count + ' folders found so far' : ''}`
+                : `⚠️ Scan ${status}`;
+        }
+
+        // Poll /api/scan_status until complete, then reload the file list
+        function startScanPoll() {
+            if (_scanPollTimer) return; // already polling
+            _scanPollTimer = setInterval(async () => {
+                try {
+                    const r = await fetch('/api/scan_status');
+                    const d = await r.json();
+                    setScanBanner(d.status, d.folders);
+                    if (d.status === 'complete') {
+                        clearInterval(_scanPollTimer);
+                        _scanPollTimer = null;
+                        // Full reload from the now-complete cache
+                        currentOffset = 0;
+                        await loadVideos(false);
+                    }
+                } catch (_) {}
+            }, 2000);
+        }
+
         // Load videos on page load
         async function loadVideos(append = false) {
             try {
-                const response = await fetch(`/api/list_videos?offset=${currentOffset}&limit=200`);
+                const response = await fetch(`/api/list_videos?offset=${currentOffset}&limit=500`);
                 const data = await response.json();
                 const folderTree = data.folders;
                 hasMoreFolders = data.hasMore;
-                
+                const scanStatus = data.scanStatus || 'complete';
+
+                // Show/hide scanning banner and start polling if still scanning
+                setScanBanner(scanStatus, data.total || 0);
+                if (scanStatus === 'scanning') {
+                    startScanPoll();
+                }
+
                 // Flatten videos for currentVideos array
                 const startingIndex = currentVideos.length;
                 if (!append) {
@@ -912,84 +998,117 @@
                 Object.values(folderTree).forEach(folder => {
                     currentVideos.push(...folder.files);
                 });
-                
+
                 const fileBrowser = document.getElementById('fileBrowser');
                 if (!append) {
                     fileBrowser.innerHTML = '';
                 }
-                
+
                 // Remove existing "Load More" button if present
                 const existingLoadMore = fileBrowser.querySelector('.load-more-btn');
                 if (existingLoadMore) {
                     existingLoadMore.remove();
                 }
-                
+
                 if (!append && Object.keys(folderTree).length === 0) {
-                    fileBrowser.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No videos found</div>';
+                    if (scanStatus === 'scanning') {
+                        fileBrowser.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">Scanning… folders will appear when ready</div>';
+                    } else {
+                        fileBrowser.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No videos found</div>';
+                    }
                     return;
                 }
-                
-                // Sort folders by name
-                const sortedFolders = Object.entries(folderTree).sort((a, b) => a[0].localeCompare(b[0]));
-                
-                sortedFolders.forEach(([folderName, folderData]) => {
-                    const folderItem = document.createElement('div');
-                    folderItem.className = 'folder-item';
-                    
-                    // Folder header
-                    const folderHeader = document.createElement('div');
-                    folderHeader.className = 'folder-header';
-                    folderHeader.innerHTML = `
-                        <span class="folder-toggle">▼</span>
-                        <span class="folder-icon">📁</span>
-                        <span class="folder-name">${folderName}</span>
+
+                // Build two-level hierarchy: show -> season -> folderData
+                const showTree = {};
+                Object.entries(folderTree).forEach(([folderName, folderData]) => {
+                    // Split on both / and \ to handle Linux and Windows paths
+                    const parts = folderName.split(/[/\\]/);
+                    const showName = parts[0];
+                    const seasonName = parts.slice(1).join('/');
+                    if (!showTree[showName]) showTree[showName] = {};
+                    showTree[showName][seasonName || '\x00root'] = folderData;
+                });
+
+                const sortedShows = Object.keys(showTree).sort(naturalSortCmp);
+
+                sortedShows.forEach(showName => {
+                    const seasons = showTree[showName];
+
+                    // Show-level item
+                    const showItem = document.createElement('div');
+                    showItem.className = 'folder-item';
+
+                    const showHeader = document.createElement('div');
+                    showHeader.className = 'folder-header';
+                    showHeader.innerHTML = `
+                        <span class="folder-toggle collapsed">▶</span>
+                        <span class="folder-icon">📺</span>
+                        <span class="folder-name">${showName}</span>
                     `;
-                    
-                    // Folder contents
-                    const folderContents = document.createElement('div');
-                    folderContents.className = 'folder-contents';
-                    
-                    folderData.files.forEach((video, index) => {
-                        const fileItem = document.createElement('div');
-                        fileItem.className = 'file-item';
-                        fileItem.innerHTML = `
-                            <span class="file-icon">📄</span>
-                            <span class="file-name">${video.name}</span>
-                        `;
-                        
-                        // Calculate global index - search from startingIndex to avoid duplicates
-                        const globalIndex = append ? 
-                            currentVideos.findIndex((v, i) => i >= startingIndex && v.path === video.path) :
-                            currentVideos.findIndex(v => v.path === video.path);
-                        fileItem.dataset.index = globalIndex;
-                        
-                        fileItem.addEventListener('click', function() {
-                            // Remove selection from all items
-                            document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
-                            // Select this item
-                            this.classList.add('selected');
-                            onVideoSelected(globalIndex);
-                        });
-                        
-                        folderContents.appendChild(fileItem);
+
+                    const showContents = document.createElement('div');
+                    showContents.className = 'folder-contents collapsed';
+                    showContents.style.paddingLeft = '12px';
+
+                    const sortedSeasons = Object.keys(seasons).sort(naturalSortCmp);
+
+                    sortedSeasons.forEach(seasonKey => {
+                        const folderData = seasons[seasonKey];
+                        const seasonLabel = seasonKey === '\x00root' ? showName : seasonKey;
+
+                        if (seasonKey === '\x00root') {
+                            // No season sub-folder — render files directly under show
+                            folderData.files.forEach(video => {
+                                const globalIndex = currentVideos.findIndex((v, i) =>
+                                    (!append || i >= startingIndex) && v.path === video.path);
+                                showContents.appendChild(makeFileItem(video, globalIndex));
+                            });
+                        } else {
+                            // Season sub-folder
+                            const seasonItem = document.createElement('div');
+                            seasonItem.className = 'folder-item';
+
+                            const seasonHeader = document.createElement('div');
+                            seasonHeader.className = 'folder-header';
+                            seasonHeader.innerHTML = `
+                                <span class="folder-toggle collapsed">▶</span>
+                                <span class="folder-icon">📁</span>
+                                <span class="folder-name">${seasonLabel}</span>
+                            `;
+
+                            const seasonContents = document.createElement('div');
+                            seasonContents.className = 'folder-contents collapsed';
+
+                            folderData.files.forEach(video => {
+                                const globalIndex = currentVideos.findIndex((v, i) =>
+                                    (!append || i >= startingIndex) && v.path === video.path);
+                                seasonContents.appendChild(makeFileItem(video, globalIndex));
+                            });
+
+                            seasonHeader.addEventListener('click', () => {
+                                const toggle = seasonHeader.querySelector('.folder-toggle');
+                                seasonContents.classList.toggle('collapsed');
+                                toggle.classList.toggle('collapsed');
+                            });
+
+                            seasonItem.appendChild(seasonHeader);
+                            seasonItem.appendChild(seasonContents);
+                            showContents.appendChild(seasonItem);
+                        }
                     });
-                    
-                    // Toggle folder
-                    folderHeader.addEventListener('click', () => {
-                        const toggle = folderHeader.querySelector('.folder-toggle');
-                        folderContents.classList.toggle('collapsed');
+
+                    showHeader.addEventListener('click', () => {
+                        const toggle = showHeader.querySelector('.folder-toggle');
+                        showContents.classList.toggle('collapsed');
                         toggle.classList.toggle('collapsed');
                     });
-                    
-                    // Start folders collapsed by default
-                    folderContents.classList.add('collapsed');
-                    folderHeader.querySelector('.folder-toggle').classList.add('collapsed');
-                    
-                    folderItem.appendChild(folderHeader);
-                    folderItem.appendChild(folderContents);
-                    fileBrowser.appendChild(folderItem);
+
+                    showItem.appendChild(showHeader);
+                    showItem.appendChild(showContents);
+                    fileBrowser.appendChild(showItem);
                 });
-                
+
                 // Add "Load More" button if there are more folders
                 if (hasMoreFolders) {
                     const loadMoreBtn = document.createElement('div');
@@ -1001,7 +1120,7 @@
                     loadMoreBtn.onclick = async () => {
                         loadMoreBtn.innerHTML = '⏳ Loading...';
                         loadMoreBtn.style.pointerEvents = 'none';
-                        currentOffset += 200;
+                        currentOffset += 500;
                         await loadVideos(true);
                     };
                     fileBrowser.appendChild(loadMoreBtn);
