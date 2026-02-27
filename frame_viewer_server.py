@@ -98,6 +98,12 @@ def _start_scan():
     _library_scan_thread = t
     t.start()
 
+# Start the scan at import time so it's ready before the first request.
+# With Werkzeug's reloader, WERKZEUG_RUN_MAIN is set in the child worker
+# process that actually serves traffic — skip the parent stat-watcher.
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not FLASK_DEBUG:
+    _start_scan()
+
 def sonarr_request(endpoint: str, params: dict = None) -> dict:
     """Make authenticated request to Sonarr API."""
     if not SONARR_BASE_URL or not SONARR_API_KEY:
@@ -775,5 +781,4 @@ def parse_filename(filepath):
 
 
 if __name__ == '__main__':
-    _start_scan()  # kick off background library scan before serving requests
     app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT)
