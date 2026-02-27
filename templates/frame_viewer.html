@@ -970,6 +970,11 @@
                         // Full reload from the now-complete cache
                         currentOffset = 0;
                         await loadVideos(false);
+                    } else if (d.status === 'error') {
+                        // Auto-retry: call list_videos which will kick off a new scan
+                        clearInterval(_scanPollTimer);
+                        _scanPollTimer = null;
+                        setTimeout(() => loadVideos(false), 3000);
                     }
                 } catch (_) {}
             }, 2000);

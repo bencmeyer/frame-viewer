@@ -53,27 +53,7 @@ def _scan_library():
     global _library_cache, _library_scan_status
     video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
     workspace_path = Path(VIDEO_PATH)
-
-    # Wait for the path to be mounted and non-empty (Docker volumes can take a
-    # few seconds to become available after container start).
-    waited = 0
-    while True:
-        try:
-            if workspace_path.exists() and any(workspace_path.iterdir()):
-                break
-        except Exception:
-            pass
-        if waited == 0:
-            print(f"[scan] Waiting for {workspace_path} to become available...")
-        time.sleep(1)
-        waited += 1
-        if waited >= 60:
-            print(f"[scan] Timeout waiting for {workspace_path} — aborting")
-            with _library_scan_lock:
-                _library_scan_status = 'error'
-            return
-
-    print(f"[scan] Starting background library scan at: {workspace_path}")
+    print(f"[scan] Starting background library scan at: {workspace_path}", flush=True)
     try:
         new_cache = {}
         folder_count = 0
@@ -100,15 +80,23 @@ def _scan_library():
                 }
                 folder_count += 1
                 if folder_count % 100 == 0:
-                    print(f"[scan] {folder_count} folders scanned...")
+                    print(f"[scan] {folder_count} folders scanned...", flush=True)
+        if folder_count == 0:
+            # Path was empty — volume may not be mounted yet. Retry shortly.
+            print(f"[scan] 0 folders found at {workspace_path}, will retry in 5s", flush=True)
+            with _library_scan_lock:
+                _library_scan_status = 'idle'
+            time.sleep(5)
+            _start_scan()
+            return
         with _library_scan_lock:
             _library_cache = new_cache
             _library_scan_status = 'complete'
-        print(f"[scan] Complete: {folder_count} folders cached")
+        print(f"[scan] Complete: {folder_count} folders cached", flush=True)
     except Exception as e:
         with _library_scan_lock:
             _library_scan_status = 'error'
-        print(f"[scan] Error: {e}")
+        print(f"[scan] Error: {e}", flush=True)
 
 def _start_scan():
     global _library_scan_thread, _library_scan_status
@@ -224,6 +212,11 @@ def list_videos():
         status = _library_scan_status
         all_keys = list(_library_cache.keys())
         cache_snapshot = _library_cache
+
+    # If scan finished but found nothing (e.g. volume wasn't ready), kick off a new one
+    if status in ('idle', 'error', 'complete') and len(all_keys) == 0:
+        _start_scan()
+        status = 'scanning'
 
     sorted_keys = sorted(all_keys, key=_natural_sort_key)
     page_keys = sorted_keys[offset:offset + limit]
