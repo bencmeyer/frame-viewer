@@ -11,6 +11,7 @@ import json
 import base64
 import re
 import threading
+import time
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -52,6 +53,26 @@ def _scan_library():
     global _library_cache, _library_scan_status
     video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
     workspace_path = Path(VIDEO_PATH)
+
+    # Wait for the path to be mounted and non-empty (Docker volumes can take a
+    # few seconds to become available after container start).
+    waited = 0
+    while True:
+        try:
+            if workspace_path.exists() and any(workspace_path.iterdir()):
+                break
+        except Exception:
+            pass
+        if waited == 0:
+            print(f"[scan] Waiting for {workspace_path} to become available...")
+        time.sleep(1)
+        waited += 1
+        if waited >= 60:
+            print(f"[scan] Timeout waiting for {workspace_path} — aborting")
+            with _library_scan_lock:
+                _library_scan_status = 'error'
+            return
+
     print(f"[scan] Starting background library scan at: {workspace_path}")
     try:
         new_cache = {}
