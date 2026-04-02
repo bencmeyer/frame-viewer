@@ -782,6 +782,18 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Split Section (shown when 2+ episodes selected) -->
+                    <div id="splitPanel" style="display: none; flex-direction: column; padding: 15px; border-top: 2px solid #333; background: #181818;">
+                        <div style="margin-bottom: 12px;">
+                            <strong style="color: #fff; font-size: 13px;">✂️ Step 5 (alt): Split Into Individual Files</strong>
+                            <span style="font-size: 11px; color: #888; margin-left: 10px;">Sets the start time for each episode, then splits the video. Original file will be deleted.</span>
+                        </div>
+                        <div id="splitTableContainer"></div>
+                        <div style="margin-top: 12px;">
+                            <button id="splitFilesBtn" onclick="splitFiles()" style="background: #b71c1c; padding: 10px 24px; white-space: nowrap; font-size: 13px;">✂️ Split Files &amp; Delete Original</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -887,6 +899,8 @@
         let currentOffset = 0;
         let hasMoreFolders = false;
         let _scanPollTimer = null;
+        let videoDuration = 0;        // updated after every frame extraction
+        let splitTimestamps = {};     // epNum -> seconds, populated by updateRenameSection
 
         // Toggle section collapse
         function toggleSection(header) {
@@ -1649,6 +1663,7 @@
 
                 // Update hint with smart multi-episode suggestions
                 const duration = data.duration;
+                videoDuration = duration;  // store globally for split feature
                 const halfDuration = Math.floor(duration / 2);
                 const halfMinutes = Math.floor(halfDuration / 60);
                 const halfSeconds = halfDuration % 60;
@@ -1742,6 +1757,28 @@
             document.getElementById('currentFilename').textContent = filename;
             document.getElementById('newFilename').value = newFilename;
             panel.style.display = 'flex';
+
+            // --- Split panel ---
+            const splitPanel = document.getElementById('splitPanel');
+            if (selectedEpisodes.length >= 2) {
+                // Auto-populate splitTimestamps for any episode not yet set
+                const count = selectedEpisodes.length;
+                selectedEpisodes.forEach((ep, i) => {
+                    if (splitTimestamps[ep.episode] === undefined) {
+                        if (i === 0) {
+                            splitTimestamps[ep.episode] = 10;
+                        } else {
+                            splitTimestamps[ep.episode] = videoDuration > 0
+                                ? Math.floor(videoDuration * i / count)
+                                : i * 660;
+                        }
+                    }
+                });
+                renderSplitTable();
+                splitPanel.style.display = 'flex';
+            } else {
+                splitPanel.style.display = 'none';
+            }
         }
 
         async function renameFile() {
@@ -1803,6 +1840,157 @@
                 showError('Error renaming file: ' + error.message);
             }
         }
+
+        // ── Split helpers ────────────────────────────────────────────────────────
+
+        function generateSingleEpisodeName(ep, originalFilename) {
+            const extension = originalFilename.split('.').pop();
+            const showName = document.getElementById('showSelect').selectedOptions[0].textContent.split(' (')[0].split(' - ')[0];
+            const epStr = `E${ep.episode.toString().padStart(2, '0')}`;
+            let quality = 'WEBDL-1080p';
+            const qualityMatch = originalFilename.match(/\[([^\]]+)\]/);
+            if (qualityMatch) quality = qualityMatch[1];
+            return `${showName} - S${currentSeason.toString().padStart(2, '0')}${epStr} - ${ep.title} [${quality}].${extension}`;
+        }
+
+        function secondsToMMSS(secs) {
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function parseTimeInput(val) {
+            val = val.trim();
+            const parts = val.split(':').map(n => parseInt(n) || 0);
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+            return parseFloat(val) || 0;
+        }
+
+        function renderSplitTable() {
+            const filename = currentVideoPath.split('/').pop();
+            const container = document.getElementById('splitTableContainer');
+            let html = `<table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead><tr style="color:#888; border-bottom:1px solid #333;">
+                    <th style="text-align:left; padding:4px 8px;">Episode</th>
+                    <th style="text-align:left; padding:4px 8px;">Start Time</th>
+                    <th style="text-align:left; padding:4px 8px;">Output Filename</th>
+                    <th style="padding:4px 8px;">Preview</th>
+                </tr></thead><tbody>`;
+
+            selectedEpisodes.forEach((ep, i) => {
+                const secs = splitTimestamps[ep.episode] ?? (i === 0 ? 10 : i * 660);
+                const outputName = generateSingleEpisodeName(ep, filename);
+                const endLabel = i + 1 < selectedEpisodes.length
+                    ? secondsToMMSS(splitTimestamps[selectedEpisodes[i + 1].episode] ?? 0)
+                    : (videoDuration > 0 ? secondsToMMSS(videoDuration) : 'end');
+                html += `<tr style="border-bottom:1px solid #2a2a2a;">
+                    <td style="padding:6px 8px; white-space:nowrap; color:#ccc;">E${ep.episode.toString().padStart(2,'0')} - ${ep.title}</td>
+                    <td style="padding:6px 8px;">
+                        <input type="text" value="${secondsToMMSS(secs)}"
+                            onchange="updateSplitTimestamp(${ep.episode}, this.value)"
+                            style="width:70px; background:#2a2a2a; border:1px solid #555; border-radius:3px; color:#fff; padding:3px 6px; font-family:monospace;"
+                            title="Start time for this episode (MM:SS or HH:MM:SS)">
+                        <span style="color:#555; font-size:10px; margin-left:4px;">→ ${endLabel}</span>
+                    </td>
+                    <td style="padding:6px 8px; font-family:monospace; color:#aaa; font-size:10px; word-break:break-all;">${outputName}</td>
+                    <td style="padding:6px 8px; text-align:center;">
+                        <button onclick="previewSplitFrame(${ep.episode})" title="Preview frame at this start time"
+                            style="padding:3px 8px; font-size:12px;">🔍</button>
+                    </td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function updateSplitTimestamp(epNum, value) {
+            splitTimestamps[epNum] = parseTimeInput(value);
+            renderSplitTable();
+        }
+
+        async function previewSplitFrame(epNum) {
+            const secs = splitTimestamps[epNum] ?? 0;
+            if (!currentVideoPath) return;
+
+            try {
+                const response = await fetch('/api/extract_frames', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        video_path: currentVideoPath,
+                        start_time: secs,
+                        num_frames: 1,
+                        interval: 0
+                    })
+                });
+                const data = await response.json();
+                if (data.error) { showError(data.error); return; }
+                displayFrames(data.frames);
+                // Scroll to frames
+                document.getElementById('framesGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (err) {
+                showError('Preview failed: ' + err.message);
+            }
+        }
+
+        async function splitFiles() {
+            if (!currentVideoPath || selectedEpisodes.length < 2) return;
+
+            const filename = currentVideoPath.split('/').pop();
+            const segments = selectedEpisodes.map(ep => ({
+                start_time: splitTimestamps[ep.episode] ?? 0,
+                output_name: generateSingleEpisodeName(ep, filename)
+            }));
+
+            const names = segments.map(s => s.output_name).join('\n  ');
+            if (!confirm(`This will create ${segments.length} files and permanently delete the original.\n\nOutput files:\n  ${names}\n\nContinue?`)) return;
+
+            const btn = document.getElementById('splitFilesBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Splitting...';
+
+            try {
+                const response = await fetch('/api/split_file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input_path: currentVideoPath, segments })
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showError('Split failed: ' + data.error);
+                    return;
+                }
+
+                alert(`Split complete! Created ${data.created_files.length} files:\n  ${data.created_files.join('\n  ')}`);
+
+                // Clear state
+                selectedEpisodeNumbers.clear();
+                splitTimestamps = {};
+                currentVideoPath = null;
+                document.getElementById('framesGrid').innerHTML = '';
+                document.getElementById('videoInfo').style.display = 'none';
+                document.getElementById('frameHint').innerHTML = 'For multi-episode files, try different start times';
+                document.getElementById('renamePanel').style.display = 'none';
+                document.getElementById('splitPanel').style.display = 'none';
+
+                const episodeSearch = document.getElementById('episodeSearch');
+                if (episodeSearch) episodeSearch.value = '';
+
+                loadVideos();
+                renderEpisodeList();
+
+            } catch (err) {
+                showError('Split error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '✂️ Split Files & Delete Original';
+            }
+        }
+
+        // ── End split helpers ─────────────────────────────────────────────────────
 
         function displayFrames(frames) {
             const grid = document.getElementById('framesGrid');

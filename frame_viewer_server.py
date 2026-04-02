@@ -431,6 +431,97 @@ def rename_file():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/split_file', methods=['POST'])
+def split_file():
+    """Split a multi-episode video file into individual episode files using ffmpeg remux (-c copy)."""
+    data = request.json
+
+    input_path = data.get('input_path')
+    segments = data.get('segments')  # [{start_time: float, output_name: str}, ...]
+
+    if not input_path or not segments or len(segments) < 2:
+        return jsonify({'error': 'input_path and at least 2 segments are required'}), 400
+
+    if not os.path.exists(input_path):
+        return jsonify({'error': 'Input file not found'}), 404
+
+    input_path_obj = Path(input_path)
+    output_dir = input_path_obj.parent
+
+    # Get video duration via ffprobe
+    try:
+        probe = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', input_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+        )
+        video_duration = float(probe.stdout.decode().strip())
+    except Exception as e:
+        return jsonify({'error': f'Failed to probe video duration: {str(e)}'}), 500
+
+    # Build (start, end) pairs for each segment
+    segment_list = sorted(segments, key=lambda s: s['start_time'])
+    output_files = []
+    for i, seg in enumerate(segment_list):
+        start = float(seg['start_time'])
+        end = float(segment_list[i + 1]['start_time']) if i + 1 < len(segment_list) else video_duration
+        output_name = seg['output_name']
+
+        # Basic filename safety — disallow path separators
+        if '/' in output_name or '\\' in output_name:
+            return jsonify({'error': f'Invalid output filename: {output_name}'}), 400
+
+        output_path = output_dir / output_name
+        if output_path.exists():
+            return jsonify({'error': f'Output file already exists: {output_name}'}), 400
+
+        output_files.append((start, end, output_path))
+
+    # Run ffmpeg for each segment
+    created = []
+    try:
+        for start, end, output_path in output_files:
+            duration_secs = max(0.0, end - start)
+            cmd = [
+                'ffmpeg', '-y',
+                '-ss', f'{start:.3f}',
+                '-i', input_path,
+                '-t', f'{duration_secs:.3f}',
+                '-c', 'copy',
+                str(output_path)
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True)
+
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                raise RuntimeError(f'Output file missing or empty: {output_path.name}')
+
+            created.append(output_path.name)
+    except subprocess.CalledProcessError as e:
+        # Clean up any partial outputs
+        for p in created:
+            try:
+                (output_dir / p).unlink()
+            except OSError:
+                pass
+        return jsonify({'error': f'ffmpeg failed: {e.stderr.decode(errors="replace").strip()}'}), 500
+    except Exception as e:
+        for p in created:
+            try:
+                (output_dir / p).unlink()
+            except OSError:
+                pass
+        return jsonify({'error': str(e)}), 500
+
+    # All segments created successfully — delete original
+    try:
+        os.remove(input_path)
+    except OSError as e:
+        return jsonify({'error': f'Split succeeded but could not delete original: {str(e)}',
+                        'created_files': created}), 500
+
+    return jsonify({'success': True, 'created_files': created})
+
+
 @app.route('/api/sonarr/search', methods=['GET'])
 def sonarr_search_series():
     """Search for series in Sonarr"""
