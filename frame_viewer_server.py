@@ -106,6 +106,34 @@ def _start_scan():
     _library_scan_thread = t
     t.start()
 
+def _rescan_folder(folder_path):
+    """Immediately refresh the cache entry for a single folder (synchronous, fast)."""
+    video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.m4v', '.webm'}
+    folder_path = Path(folder_path)
+    workspace_path = Path(VIDEO_PATH)
+    try:
+        rel_path = folder_path.relative_to(workspace_path)
+        folder_key = str(rel_path) if str(rel_path) != '.' else 'Root'
+    except ValueError:
+        return  # folder outside VIDEO_PATH — ignore
+
+    video_files = [
+        {'path': str(folder_path / f), 'name': f, 'type': 'file'}
+        for f in os.listdir(folder_path)
+        if Path(f).suffix.lower() in video_extensions
+    ]
+
+    with _library_scan_lock:
+        if video_files:
+            _library_cache[folder_key] = {
+                'path': str(folder_path),
+                'files': sorted(video_files, key=lambda x: _natural_sort_key(x['name'])),
+                'type': 'folder'
+            }
+        else:
+            # Folder is now empty of video files — remove the key
+            _library_cache.pop(folder_key, None)
+
 # Start the background scan immediately at module load time.
 # This runs in every process (reloader watcher + worker), but only
 # the worker process actually serves requests, so its cache is what matters.
@@ -420,7 +448,10 @@ def rename_file():
         
         # Rename the file
         os.rename(old_path, new_path)
-        
+
+        # Update cache immediately so the next list_videos call reflects the change
+        _rescan_folder(old_path_obj.parent)
+
         return jsonify({
             'success': True,
             'old_path': str(old_path),
@@ -518,6 +549,9 @@ def split_file():
     except OSError as e:
         return jsonify({'error': f'Split succeeded but could not delete original: {str(e)}',
                         'created_files': created}), 500
+
+    # Update cache immediately so the next list_videos call reflects the new files
+    _rescan_folder(output_dir)
 
     return jsonify({'success': True, 'created_files': created})
 
