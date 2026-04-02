@@ -1830,11 +1830,12 @@
                 
                 // Update current path and reload videos
                 currentVideoPath = data.new_path;
-                loadVideos();
-                
+                await loadVideos();
+
                 // Re-render episode list and update rename section
                 renderEpisodeList();
                 updateRenameSection();
+                restoreFileBrowserFolder(data.new_path);
                 
             } catch (error) {
                 showError('Error renaming file: ' + error.message);
@@ -1966,7 +1967,10 @@
 
                 alert(`Split complete! Created ${data.created_files.length} files:\n  ${data.created_files.join('\n  ')}`);
 
-                // Clear state
+                // Remember folder before clearing state
+                const splitVideoPath = currentVideoPath;
+
+                // Clear per-file state (keep show/season selection intact)
                 selectedEpisodeNumbers.clear();
                 splitTimestamps = {};
                 currentVideoPath = null;
@@ -1979,8 +1983,9 @@
                 const episodeSearch = document.getElementById('episodeSearch');
                 if (episodeSearch) episodeSearch.value = '';
 
-                loadVideos();
+                await loadVideos();
                 renderEpisodeList();
+                restoreFileBrowserFolder(splitVideoPath);
 
             } catch (err) {
                 showError('Split error: ' + err.message);
@@ -1991,6 +1996,52 @@
         }
 
         // ── End split helpers ─────────────────────────────────────────────────────
+
+        // Re-expands the show/season folder in the file browser that contains videoPath,
+        // then scrolls it into view so the user doesn't lose their place.
+        function restoreFileBrowserFolder(videoPath) {
+            if (!videoPath) return;
+            const parts = videoPath.split(/[/\\]/);
+            // parts[-1]=filename, parts[-2]=season folder, parts[-3]=show folder
+            if (parts.length < 3) return;
+            const showName = parts[parts.length - 3];
+            const seasonName = parts[parts.length - 2];
+
+            const fileBrowser = document.getElementById('fileBrowser');
+            // Top-level folder-headers are direct children of show-level folder-items
+            const topHeaders = fileBrowser.querySelectorAll(':scope > .folder-item > .folder-header');
+            for (const showHeader of topHeaders) {
+                const nameEl = showHeader.querySelector('.folder-name');
+                if (!nameEl || nameEl.textContent.trim() !== showName) continue;
+
+                // Expand the show
+                const showToggle = showHeader.querySelector('.folder-toggle');
+                const showContents = showHeader.nextElementSibling;
+                if (showContents && showContents.classList.contains('collapsed')) {
+                    showContents.classList.remove('collapsed');
+                    if (showToggle) showToggle.classList.remove('collapsed');
+                }
+
+                // Expand the matching season inside
+                if (showContents) {
+                    const seasonHeaders = showContents.querySelectorAll(':scope > .folder-item > .folder-header');
+                    for (const sh of seasonHeaders) {
+                        const snEl = sh.querySelector('.folder-name');
+                        if (!snEl || snEl.textContent.trim() !== seasonName) continue;
+                        const st = sh.querySelector('.folder-toggle');
+                        const sc = sh.nextElementSibling;
+                        if (sc && sc.classList.contains('collapsed')) {
+                            sc.classList.remove('collapsed');
+                            if (st) st.classList.remove('collapsed');
+                        }
+                        break;
+                    }
+                }
+
+                showHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                break;
+            }
+        }
 
         function displayFrames(frames) {
             const grid = document.getElementById('framesGrid');
